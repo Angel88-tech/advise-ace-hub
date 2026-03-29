@@ -34,11 +34,9 @@ interface AuthContextType {
   profile: Profile | null
   isLoading: boolean
   isAuthenticated: boolean
-
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string, name: string, role: UserRole) => Promise<void>
   loginWithMagicLink: (email: string) => Promise<void>
-
   logout: () => Promise<void>
   refreshProfile: () => Promise<void>
 }
@@ -51,14 +49,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  const fetchProfile = async (userId: string) => {
+  const createProfileIfNotExists = async (user: User) => {
     const { data } = await supabase
       .from('profiles')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', user.id)
       .maybeSingle()
 
-    if (data) setProfile(data as Profile)
+    if (data) {
+      setProfile(data as Profile)
+      return
+    }
+
+    const { data: newProfile } = await supabase
+      .from('profiles')
+      .insert({
+        user_id: user.id,
+        name: user.email?.split('@')[0] || 'User',
+        role: 'student',
+        bio: '',
+        avatar_url: null,
+        major: null,
+        year: null,
+        phone: null,
+        location: null,
+        linkedin_url: null,
+        website_url: null,
+        language: 'en',
+        theme: 'light',
+        privacy_profile_public: true,
+        privacy_show_email: false,
+        accessibility_font_size: 'medium',
+        accessibility_reduce_motion: false,
+        accessibility_high_contrast: false,
+      })
+      .select()
+      .single()
+
+    if (newProfile) setProfile(newProfile as Profile)
+  }
+
+  const refreshProfile = async () => {
+    if (!user) return
+    await createProfileIfNotExists(user)
   }
 
   useEffect(() => {
@@ -68,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null)
 
         if (session?.user) {
-          await fetchProfile(session.user.id)
+          await createProfileIfNotExists(session.user)
         } else {
           setProfile(null)
         }
@@ -82,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null)
 
       if (session?.user) {
-        await fetchProfile(session.user.id)
+        await createProfileIfNotExists(session.user)
       }
 
       setIsLoading(false)
@@ -92,16 +125,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const login = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
       if (error.message.includes('Invalid login credentials')) {
-        throw new Error('Wrong email or password')
+        throw new Error('Incorrect email or password')
       }
-      throw error
+      throw new Error(error.message)
     }
   }
 
@@ -114,24 +144,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        emailRedirectTo: window.location.origin + '/auth'
-      }
     })
 
-    if (error) {
-      if (error.message.includes('User already registered')) {
-        throw new Error('This email already has an account. Please login.')
-      }
-      throw error
-    }
+    if (error) throw error
 
     const userId = data.user?.id
-
-    // إذا فيه تأكيد إيميل → ما نكمل
     if (!userId) return
 
-    const { error: profileError } = await supabase.from('profiles').insert({
+    await supabase.from('profiles').insert({
       user_id: userId,
       name,
       role,
@@ -151,19 +171,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       accessibility_reduce_motion: false,
       accessibility_high_contrast: false,
     })
-
-    if (profileError) throw profileError
   }
 
   const loginWithMagicLink = async (email: string) => {
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: window.location.origin + '/auth'
-      }
+        emailRedirectTo: window.location.origin + '/auth',
+        shouldCreateUser: true,
+      },
     })
 
-    if (error) throw error
+    if (error) {
+      if (error.message.includes('rate limit')) {
+        throw new Error('Please wait before requesting another link')
+      }
+      throw new Error(error.message)
+    }
   }
 
   const logout = async () => {
@@ -171,12 +195,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
     setSession(null)
     setProfile(null)
-  }
-
-  const refreshProfile = async () => {
-    if (user) {
-      await fetchProfile(user.id)
-    }
   }
 
   return (
@@ -201,8 +219,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext)
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider')
-  }
+  if (!context) throw new Error('useAuth must be used within AuthProvider')
   return context
 }
