@@ -42,6 +42,7 @@ interface AuthContextType {
   updateProfile: (updates: Partial<Profile>) => Promise<void>
   updateEmail: (newEmail: string) => Promise<void>
   updatePassword: (newPassword: string) => Promise<void>
+  resetPasswordForEmail: (email: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -143,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .single()
 
     if (error) throw error
+
     setProfile(normalizeProfile(data, user))
   }
 
@@ -170,11 +172,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error
   }
 
+  const resetPasswordForEmail = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth`,
+    })
+
+    if (error) throw error
+  }
+
   useEffect(() => {
     const init = async () => {
-      await supabase.auth.getSession()
-
       const { data } = await supabase.auth.getSession()
+
       setSession(data.session)
       setUser(data.session?.user ?? null)
 
@@ -344,7 +353,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         profile,
         isLoading,
-        isAuthenticated: !!user,
+        isAuthenticated: !!session,
         login,
         register,
         logout,
@@ -352,6 +361,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updateProfile,
         updateEmail,
         updatePassword,
+        resetPasswordForEmail,
       }}
     >
       {children}
