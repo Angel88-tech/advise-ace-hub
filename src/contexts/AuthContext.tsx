@@ -43,8 +43,6 @@ interface AuthContextType {
   updateEmail: (newEmail: string) => Promise<void>
   updatePassword: (newPassword: string) => Promise<void>
   resetPasswordForEmail: (email: string) => Promise<void>
-  verifyEmailOtp: (email: string, token: string) => Promise<void>
-  resendSignupOtp: (email: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -177,28 +175,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const resetPasswordForEmail = async (email: string) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth`,
-    })
-
-    if (error) throw error
-  }
-
-  const verifyEmailOtp = async (email: string, token: string) => {
-    const { error } = await supabase.auth.verifyOtp({
-      email: email.trim(),
-      token: token.trim(),
-      type: 'signup',
-    })
-
-    if (error) throw error
-  }
-
-  const resendSignupOtp = async (email: string) => {
-    const { error } = await supabase.auth.resend({
-      type: 'signup',
-      email: email.trim(),
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth`,
-      },
     })
 
     if (error) throw error
@@ -386,8 +362,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updateEmail,
         updatePassword,
         resetPasswordForEmail,
-        verifyEmailOtp,
-        resendSignupOtp,
       }}
     >
       {children}
