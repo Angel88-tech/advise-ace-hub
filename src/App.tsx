@@ -1,107 +1,72 @@
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import AdminUsersPage from "./pages/admin/AdminUsersPage";
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { Toaster } from '@/components/ui/toaster'
+import { Toaster as Sonner } from '@/components/ui/sonner'
+import { TooltipProvider } from '@/components/ui/tooltip'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 
-import Landing from "./pages/Landing";
-import Auth from "./pages/Auth";
-import NotFound from "./pages/NotFound";
-import Chat from "./pages/Chat";
-import Account from "./pages/Account";
-import Settings from "./pages/Settings";
+import Landing from './pages/Landing'
+import Auth from './pages/Auth'
+import NotFound from './pages/NotFound'
+import Chat from './pages/Chat'
+import Account from './pages/Account'
+import Settings from './pages/Settings'
 
-import StudentDashboard from "./pages/student/StudentDashboard";
-import Recommendations from "./pages/student/Recommendations";
-import Mentors from "./pages/student/Mentors";
-import SkillGapAnalysis from "./pages/student/SkillGapAnalysis";
+import StudentDashboard from './pages/student/StudentDashboard'
+import Recommendations from './pages/student/Recommendations'
+import Mentors from './pages/student/Mentors'
+import SkillGapAnalysis from './pages/student/SkillGapAnalysis'
 
-import AdvisorDashboard from "./pages/advisor/AdvisorDashboard";
-import MentorDashboard from "./pages/mentor/MentorDashboard";
+import AdvisorDashboard from './pages/advisor/AdvisorDashboard'
+import MentorDashboard from './pages/mentor/MentorDashboard'
 
-const queryClient = new QueryClient();
+import AdminDashboard from './pages/admin/AdminDashboard'
+import AdminUsersPage from './pages/admin/AdminUsersPage'
+
+const queryClient = new QueryClient()
 
 function ProtectedRoute({
   children,
   allowedRoles,
 }: {
-  children: React.ReactNode;
-  allowedRoles?: string[];
+  children: React.ReactNode
+  allowedRoles?: string[]
 }) {
-  const { isAuthenticated, profile, isLoading } = useAuth();
+  const { isAuthenticated, profile, isLoading } = useAuth()
 
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return <div className="p-6">Loading...</div>
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/auth" replace />
   }
 
   if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
-    return <Navigate to="/profile" replace />;
+    return <Navigate to="/" replace />
   }
 
-  return <>{children}</>;
+  return <>{children}</>
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth()
 
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return <div className="p-6">Loading...</div>
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/profile" replace />;
+    return <Navigate to="/profile" replace />
   }
 
-  return <>{children}</>;
+  return <>{children}</>
 }
 
 function AppRoutes() {
   return (
     <Routes>
-      <Route
-  path="/admin/dashboard"
-  element={
-    <ProtectedRoute allowedRoles={['admin']}>
-      <AdminDashboard />
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/admin/students"
-  element={
-    <ProtectedRoute allowedRoles={['admin']}>
-      <AdminUsersPage type="student" />
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/admin/advisors"
-  element={
-    <ProtectedRoute allowedRoles={['admin']}>
-      <AdminUsersPage type="advisor" />
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/admin/mentors"
-  element={
-    <ProtectedRoute allowedRoles={['admin']}>
-      <AdminUsersPage type="mentor" />
-    </ProtectedRoute>
-  }
-/>
       <Route path="/" element={<Landing />} />
-      <Route path="/chat" element={<Chat />} />
 
       <Route
         path="/auth"
@@ -131,9 +96,18 @@ function AppRoutes() {
       />
 
       <Route
+        path="/chat"
+        element={
+          <ProtectedRoute>
+            <Chat />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
         path="/student/dashboard"
         element={
-          <ProtectedRoute allowedRoles={["student"]}>
+          <ProtectedRoute allowedRoles={['student']}>
             <StudentDashboard />
           </ProtectedRoute>
         }
@@ -142,7 +116,7 @@ function AppRoutes() {
       <Route
         path="/student/recommendations"
         element={
-          <ProtectedRoute allowedRoles={["student"]}>
+          <ProtectedRoute allowedRoles={['student']}>
             <Recommendations />
           </ProtectedRoute>
         }
@@ -151,16 +125,16 @@ function AppRoutes() {
       <Route
         path="/student/mentors"
         element={
-          <ProtectedRoute allowedRoles={["student"]}>
+          <ProtectedRoute allowedRoles={['student']}>
             <Mentors />
           </ProtectedRoute>
         }
       />
 
       <Route
-        path="/student/skills"
+        path="/student/skill-gap"
         element={
-          <ProtectedRoute allowedRoles={["student"]}>
+          <ProtectedRoute allowedRoles={['student']}>
             <SkillGapAnalysis />
           </ProtectedRoute>
         }
@@ -169,7 +143,7 @@ function AppRoutes() {
       <Route
         path="/advisor/dashboard"
         element={
-          <ProtectedRoute allowedRoles={["advisor"]}>
+          <ProtectedRoute allowedRoles={['advisor']}>
             <AdvisorDashboard />
           </ProtectedRoute>
         }
@@ -178,29 +152,65 @@ function AppRoutes() {
       <Route
         path="/mentor/dashboard"
         element={
-          <ProtectedRoute allowedRoles={["mentor"]}>
+          <ProtectedRoute allowedRoles={['mentor']}>
             <MentorDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/dashboard"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/students"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminUsersPage type="student" />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/advisors"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminUsersPage type="advisor" />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/mentors"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminUsersPage type="mentor" />
           </ProtectedRoute>
         }
       />
 
       <Route path="*" element={<NotFound />} />
     </Routes>
-  );
+  )
 }
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
-);
-
-export default App;
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  )
+}

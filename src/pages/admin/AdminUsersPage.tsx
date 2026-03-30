@@ -6,6 +6,10 @@ import { supabase } from '@/integrations/supabase/client'
 
 type ManagedRole = 'student' | 'advisor' | 'mentor'
 
+type AdminUsersPageProps = {
+  type: ManagedRole
+}
+
 interface UserRow {
   id: string
   user_id: string
@@ -14,7 +18,7 @@ interface UserRow {
   role: 'student' | 'advisor' | 'mentor' | 'admin'
 }
 
-export default function AdminUsersPage({ type }: { type: ManagedRole }) {
+export default function AdminUsersPage({ type }: AdminUsersPageProps) {
   const { profile } = useAuth()
   const [users, setUsers] = useState<UserRow[]>([])
   const [selected, setSelected] = useState<UserRow | null>(null)
@@ -23,7 +27,7 @@ export default function AdminUsersPage({ type }: { type: ManagedRole }) {
   const [role, setRole] = useState<ManagedRole>(type)
   const [loading, setLoading] = useState(true)
 
-  const titleMap = {
+  const titleMap: Record<ManagedRole, string> = {
     student: 'Student controller',
     advisor: 'Advisor controller',
     mentor: 'Mentor controller',
@@ -32,23 +36,31 @@ export default function AdminUsersPage({ type }: { type: ManagedRole }) {
   const fetchUsers = async () => {
     setLoading(true)
 
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('profiles')
-      .select('id,user_id,name,email,role')
+      .select('*')
       .eq('role', type)
       .order('created_at', { ascending: true })
 
     if (error) {
       alert(error.message)
     } else {
-      setUsers((data || []) as UserRow[])
+      const formattedUsers: UserRow[] = ((data || []) as any[]).map((user) => ({
+        id: user.id ?? '',
+        user_id: user.user_id ?? '',
+        name: user.name ?? '',
+        email: user.email ?? '',
+        role: (user.role ?? type) as UserRow['role'],
+      }))
+
+      setUsers(formattedUsers)
     }
 
     setLoading(false)
   }
 
   useEffect(() => {
-    fetchUsers()
+    void fetchUsers()
   }, [type])
 
   const selectUser = (user: UserRow) => {
@@ -71,7 +83,7 @@ export default function AdminUsersPage({ type }: { type: ManagedRole }) {
       return
     }
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('profiles')
       .update({
         name,
@@ -87,7 +99,7 @@ export default function AdminUsersPage({ type }: { type: ManagedRole }) {
 
     alert('User updated')
     clearForm()
-    fetchUsers()
+    void fetchUsers()
   }
 
   const handleDelete = async () => {
@@ -99,7 +111,7 @@ export default function AdminUsersPage({ type }: { type: ManagedRole }) {
     const ok = window.confirm('Delete this user from profiles?')
     if (!ok) return
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('profiles')
       .delete()
       .eq('user_id', selected.user_id)
@@ -111,7 +123,7 @@ export default function AdminUsersPage({ type }: { type: ManagedRole }) {
 
     alert('User deleted from profiles')
     clearForm()
-    fetchUsers()
+    void fetchUsers()
   }
 
   if (profile?.role !== 'admin') {
@@ -124,13 +136,28 @@ export default function AdminUsersPage({ type }: { type: ManagedRole }) {
 
       <div className="max-w-7xl mx-auto px-6 py-10">
         <div className="flex items-center justify-center gap-4 mb-10">
-          <Link to="/admin/students" className={`px-5 py-2 rounded-md border ${type === 'student' ? 'bg-slate-700 text-white' : 'bg-white'}`}>
+          <Link
+            to="/admin/students"
+            className={`px-5 py-2 rounded-md border ${
+              type === 'student' ? 'bg-slate-700 text-white' : 'bg-white'
+            }`}
+          >
             Students
           </Link>
-          <Link to="/admin/advisors" className={`px-5 py-2 rounded-md border ${type === 'advisor' ? 'bg-slate-700 text-white' : 'bg-white'}`}>
+          <Link
+            to="/admin/advisors"
+            className={`px-5 py-2 rounded-md border ${
+              type === 'advisor' ? 'bg-slate-700 text-white' : 'bg-white'
+            }`}
+          >
             Advisors
           </Link>
-          <Link to="/admin/mentors" className={`px-5 py-2 rounded-md border ${type === 'mentor' ? 'bg-slate-700 text-white' : 'bg-white'}`}>
+          <Link
+            to="/admin/mentors"
+            className={`px-5 py-2 rounded-md border ${
+              type === 'mentor' ? 'bg-slate-700 text-white' : 'bg-white'
+            }`}
+          >
             Mentors
           </Link>
         </div>
@@ -220,6 +247,7 @@ export default function AdminUsersPage({ type }: { type: ManagedRole }) {
 
           <div className="mt-8 space-y-2">
             <button
+              type="button"
               onClick={handleUpdate}
               className="w-full bg-slate-600 hover:bg-slate-700 text-white py-3 rounded-md"
             >
@@ -227,6 +255,7 @@ export default function AdminUsersPage({ type }: { type: ManagedRole }) {
             </button>
 
             <button
+              type="button"
               onClick={handleDelete}
               className="w-full bg-slate-600 hover:bg-slate-700 text-white py-3 rounded-md"
             >
@@ -234,6 +263,7 @@ export default function AdminUsersPage({ type }: { type: ManagedRole }) {
             </button>
 
             <button
+              type="button"
               onClick={clearForm}
               className="w-full bg-slate-500 hover:bg-slate-600 text-white py-3 rounded-md"
             >

@@ -10,26 +10,43 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#f6f6f6]">
       <Navbar />
 
-      <div className="max-w-5xl mx-auto px-6 py-10">
-        <h1 className="text-4xl font-bold mb-8">Admin Dashboard</h1>
+      <div className="max-w-6xl mx-auto px-6 py-10">
+        <h1 className="text-4xl font-bold text-center mb-10">
+          Admin Dashboard
+        </h1>
 
         <div className="grid md:grid-cols-3 gap-6">
-          <Link to="/admin/students" className="border rounded-xl p-6 hover:bg-muted transition">
+          <Link
+            to="/admin/students"
+            className="bg-white border rounded-xl p-6 shadow hover:shadow-md transition"
+          >
             <h2 className="text-2xl font-semibold mb-2">Students</h2>
-            <p className="text-muted-foreground">Manage student accounts</p>
+            <p className="text-gray-500">
+              View, edit, and delete student accounts
+            </p>
           </Link>
 
-          <Link to="/admin/advisors" className="border rounded-xl p-6 hover:bg-muted transition">
+          <Link
+            to="/admin/advisors"
+            className="bg-white border rounded-xl p-6 shadow hover:shadow-md transition"
+          >
             <h2 className="text-2xl font-semibold mb-2">Advisors</h2>
-            <p className="text-muted-foreground">Manage advisor accounts</p>
+            <p className="text-gray-500">
+              Manage advisor accounts
+            </p>
           </Link>
 
-          <Link to="/admin/mentors" className="border rounded-xl p-6 hover:bg-muted transition">
+          <Link
+            to="/admin/mentors"
+            className="bg-white border rounded-xl p-6 shadow hover:shadow-md transition"
+          >
             <h2 className="text-2xl font-semibold mb-2">Mentors</h2>
-            <p className="text-muted-foreground">Manage mentor accounts</p>
+            <p className="text-gray-500">
+              Manage mentor accounts
+            </p>
           </Link>
         </div>
       </div>
