@@ -114,7 +114,6 @@ export default function Auth() {
       <div className="w-full md:w-1/2 flex items-center justify-center p-6">
         <Card className="w-full max-w-md">
           <CardContent className="space-y-4 pt-6">
-
             <div className="flex gap-2">
               <Button
                 className="w-1/2"
@@ -186,16 +185,9 @@ export default function Auth() {
               </>
             )}
 
-            <Button
-              className="w-full"
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-            >
-              {isSubmitting
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : isLogin ? 'Login' : 'Create Account'}
+            <Button className="w-full" onClick={handleSubmit} disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isLogin ? 'Login' : 'Create Account'}
             </Button>
-
           </CardContent>
         </Card>
       </div>

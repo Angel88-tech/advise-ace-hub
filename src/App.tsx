@@ -1,3 +1,5 @@
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminUsersPage from "./pages/admin/AdminUsersPage";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -63,6 +65,41 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 function AppRoutes() {
   return (
     <Routes>
+      <Route
+  path="/admin/dashboard"
+  element={
+    <ProtectedRoute allowedRoles={['admin']}>
+      <AdminDashboard />
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/admin/students"
+  element={
+    <ProtectedRoute allowedRoles={['admin']}>
+      <AdminUsersPage type="student" />
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/admin/advisors"
+  element={
+    <ProtectedRoute allowedRoles={['admin']}>
+      <AdminUsersPage type="advisor" />
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/admin/mentors"
+  element={
+    <ProtectedRoute allowedRoles={['admin']}>
+      <AdminUsersPage type="mentor" />
+    </ProtectedRoute>
+  }
+/>
       <Route path="/" element={<Landing />} />
       <Route path="/chat" element={<Chat />} />
 
