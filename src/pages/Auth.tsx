@@ -21,7 +21,7 @@ export default function Auth() {
   const [isCheckingLink, setIsCheckingLink] = useState(true)
 
   useEffect(() => {
-    const handleMagicLinkSession = async () => {
+    const finishMagicLinkLogin = async () => {
       try {
         const url = new URL(window.location.href)
         const code = url.searchParams.get('code')
@@ -33,7 +33,9 @@ export default function Auth() {
           return
         }
 
-        const { data } = await supabase.auth.getSession()
+        const { data, error } = await supabase.auth.getSession()
+        if (error) throw error
+
         if (data.session) {
           navigate('/profile', { replace: true })
           return
@@ -45,7 +47,7 @@ export default function Auth() {
       }
     }
 
-    handleMagicLinkSession()
+    finishMagicLinkLogin()
   }, [navigate])
 
   useEffect(() => {
@@ -103,9 +105,11 @@ export default function Auth() {
 
     try {
       await loginWithMagicLink(email.trim())
+
       alert(
         'Magic link sent!\n\n⚠️ IMPORTANT:\nOpen the link on the SAME device and in the SAME browser you requested it from.'
       )
+
       setCooldown(true)
       setTimeout(() => setCooldown(false), 30000)
     } catch (err: any) {
