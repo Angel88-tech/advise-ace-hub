@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
+import { supabase } from '@/integrations/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
@@ -18,6 +19,20 @@ export default function Auth() {
   const [cooldown, setCooldown] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // 🔥 مهم: التقاط session من magic link
+  useEffect(() => {
+    const handleSession = async () => {
+      const { data } = await supabase.auth.getSession()
+
+      if (data.session) {
+        navigate('/profile', { replace: true })
+      }
+    }
+
+    handleSession()
+  }, [])
+
+  // 🔥 redirect بعد login
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
       navigate('/profile', { replace: true })
@@ -75,7 +90,7 @@ export default function Auth() {
       await loginWithMagicLink(email.trim())
 
       alert(
-        'Magic link sent!\n\n⚠️ IMPORTANT:\nOpen the link on the SAME device and in the SAME browser you requested it from.'
+        'Magic link sent!\n\n⚠️ IMPORTANT:\nOpen the link on the SAME device and browser you requested it from.'
       )
 
       setCooldown(true)
@@ -117,6 +132,7 @@ export default function Auth() {
       <div className="w-full md:w-1/2 flex items-center justify-center p-6">
         <Card className="w-full max-w-md">
           <CardContent className="space-y-4 pt-6">
+
             <div className="flex gap-2">
               <Button
                 className="w-1/2"
@@ -171,7 +187,7 @@ export default function Auth() {
                         onClick={() => !isSubmitting && setRole(r.value)}
                         className={`border p-3 rounded cursor-pointer text-center transition ${
                           role === r.value ? 'border-primary bg-primary/10' : ''
-                        } ${isSubmitting ? 'opacity-60 pointer-events-none' : ''}`}
+                        }`}
                       >
                         <div className="flex justify-center mb-1">
                           <Icon size={20} />
@@ -185,13 +201,7 @@ export default function Auth() {
             )}
 
             <Button className="w-full" onClick={handleSubmit} disabled={isSubmitting}>
-              {isSubmitting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : isLogin ? (
-                'Login'
-              ) : (
-                'Create Account'
-              )}
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isLogin ? 'Login' : 'Create Account'}
             </Button>
 
             <Button
@@ -200,18 +210,13 @@ export default function Auth() {
               onClick={handleMagicLink}
               disabled={cooldown || isSubmitting}
             >
-              {isSubmitting && cooldown === false ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : cooldown ? (
-                'Wait 30s...'
-              ) : (
-                'Magic Link'
-              )}
+              {cooldown ? 'Wait 30s...' : 'Magic Link'}
             </Button>
 
             <p className="text-xs text-center text-muted-foreground">
               ⚠️ Magic link only works on the same device and browser you requested it from.
             </p>
+
           </CardContent>
         </Card>
       </div>
