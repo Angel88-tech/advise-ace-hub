@@ -56,6 +56,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const getProfilesTable = () => (supabase as any).from('profiles')
   const getAdminAllowlistTable = () => (supabase as any).from('admin_allowlist')
 
+  const clearAuthStorage = () => {
+    Object.keys(localStorage).forEach((key) => {
+      if (key.toLowerCase().includes('supabase')) {
+        localStorage.removeItem(key)
+      }
+    })
+    sessionStorage.clear()
+  }
+
   const normalizeProfile = (data: any, currentUser?: User): Profile => ({
     id: data?.id ?? '',
     user_id: data?.user_id ?? currentUser?.id ?? '',
@@ -216,6 +225,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (userError || !userData.user) {
           await supabase.auth.signOut()
+          clearAuthStorage()
           setSession(null)
           setUser(null)
           setProfile(null)
@@ -270,6 +280,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const login = async (email: string, password: string, expectedRole?: UserRole) => {
+    try {
+      await supabase.auth.signOut()
+    } catch {}
+
+    clearAuthStorage()
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -307,11 +323,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (allowlistError) {
         await supabase.auth.signOut()
+        clearAuthStorage()
         throw new Error(allowlistError.message)
       }
 
       if (!allowlistData || currentProfile?.role !== 'admin') {
         await supabase.auth.signOut()
+        clearAuthStorage()
         throw new Error('You are not allowed to access admin panel')
       }
 
@@ -320,6 +338,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (expectedRole && currentProfile?.role !== expectedRole) {
       await supabase.auth.signOut()
+      clearAuthStorage()
       throw new Error(`This account is not allowed to enter the ${expectedRole} portal`)
     }
 
@@ -400,12 +419,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       await supabase.auth.signOut()
+      clearAuthStorage()
     } catch (error) {
       console.error('logout error:', error)
     } finally {
       setUser(null)
       setSession(null)
       setProfile(null)
+      window.location.href = '/auth'
     }
   }
 

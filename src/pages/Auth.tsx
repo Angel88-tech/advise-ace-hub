@@ -52,24 +52,39 @@ function Auth() {
   const [confirmRecoveryPassword, setConfirmRecoveryPassword] = useState('')
 
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      navigate(getDashboardPath(profile?.role), { replace: true })
+    const clearAuthStorage = () => {
+      Object.keys(localStorage).forEach((key) => {
+        if (key.toLowerCase().includes('supabase')) {
+          localStorage.removeItem(key)
+        }
+      })
+      sessionStorage.clear()
     }
-  }, [isAuthenticated, isLoading, navigate, profile?.role])
 
-  useEffect(() => {
     const hash = window.location.hash.toLowerCase()
     const search = window.location.search.toLowerCase()
+    const isRecoveryLink = hash.includes('type=recovery') || search.includes('type=recovery')
+    const isSignupLink = hash.includes('type=signup') || search.includes('type=signup')
 
-    if (hash.includes('type=recovery') || search.includes('type=recovery')) {
+    if (!isRecoveryLink) {
+      clearAuthStorage()
+    }
+
+    if (isRecoveryLink) {
       setIsRecoveryMode(true)
       setIsLogin(false)
     }
 
-    if (hash.includes('type=signup') || search.includes('type=signup')) {
+    if (isSignupLink) {
       setIsLogin(true)
     }
   }, [])
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      navigate(getDashboardPath(profile?.role), { replace: true })
+    }
+  }, [isAuthenticated, isLoading, navigate, profile?.role])
 
   const validateEmail = (value: string) => {
     if (!value.trim()) return 'Please enter your email'
@@ -192,6 +207,15 @@ function Auth() {
 
     try {
       await updatePassword(recoveryPassword)
+      await supabase.auth.signOut()
+
+      Object.keys(localStorage).forEach((key) => {
+        if (key.toLowerCase().includes('supabase')) {
+          localStorage.removeItem(key)
+        }
+      })
+      sessionStorage.clear()
+
       alert('Password updated successfully. Please log in.')
       setIsRecoveryMode(false)
       setIsLogin(true)
@@ -199,6 +223,7 @@ function Auth() {
       setConfirmRecoveryPassword('')
       setPassword('')
       window.history.replaceState({}, document.title, '/auth')
+      navigate('/auth', { replace: true })
     } catch (err: any) {
       alert(err.message || 'Something went wrong')
     } finally {
