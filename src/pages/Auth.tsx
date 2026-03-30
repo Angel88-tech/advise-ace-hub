@@ -21,7 +21,7 @@ export default function Auth() {
   const [isCheckingLink, setIsCheckingLink] = useState(true)
 
   useEffect(() => {
-    const finishMagicLinkLogin = async () => {
+    const handleMagicLinkSession = async () => {
       try {
         const url = new URL(window.location.href)
         const code = url.searchParams.get('code')
@@ -29,8 +29,14 @@ export default function Auth() {
         if (code) {
           const { error } = await supabase.auth.exchangeCodeForSession(code)
           if (error) throw error
-          navigate('/profile', { replace: true })
-          return
+        }
+
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+        const hasHashTokens =
+          hashParams.get('access_token') && hashParams.get('refresh_token')
+
+        if (hasHashTokens) {
+          await new Promise((resolve) => setTimeout(resolve, 800))
         }
 
         const { data, error } = await supabase.auth.getSession()
@@ -47,7 +53,7 @@ export default function Auth() {
       }
     }
 
-    finishMagicLinkLogin()
+    handleMagicLinkSession()
   }, [navigate])
 
   useEffect(() => {
