@@ -1,165 +1,258 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAuth } from '@/contexts/AuthContext'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent } from '@/components/ui/card'
-import { GraduationCap, UserCheck, User, Loader2 } from 'lucide-react'
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { User, Session } from '@supabase/supabase-js'
+import { supabase } from '@/integrations/supabase/client'
 
-export default function Auth() {
-  const { login, register, isAuthenticated, isLoading } = useAuth()
-  const navigate = useNavigate()
+export type UserRole = 'student' | 'advisor' | 'mentor'
 
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [name, setName] = useState('')
-  const [role, setRole] = useState<'student' | 'advisor' | 'mentor'>('student')
-  const [isLogin, setIsLogin] = useState(true)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+export interface Profile {
+  id: string
+  user_id: string
+  name: string
+  role: UserRole
+  avatar_url: string | null
+  bio: string
+  major: string | null
+  year: number | null
+  phone: string | null
+  location: string | null
+  linkedin_url: string | null
+  website_url: string | null
+  language: string
+  theme: string
+  privacy_profile_public: boolean
+  privacy_show_email: boolean
+  accessibility_font_size: string
+  accessibility_reduce_motion: boolean
+  accessibility_high_contrast: boolean
+  created_at: string
+  updated_at: string
+}
+
+interface AuthContextType {
+  user: User | null
+  session: Session | null
+  profile: Profile | null
+  isLoading: boolean
+  isAuthenticated: boolean
+  login: (email: string, password: string) => Promise<void>
+  register: (email: string, password: string, name: string, role: UserRole) => Promise<void>
+  logout: () => Promise<void>
+  refreshProfile: () => Promise<void>
+  updateProfile: (updates: Partial<Profile>) => Promise<void>
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null)
+  const [session, setSession] = useState<Session | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  const fetchProfile = async (currentUser: User) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .maybeSingle()
+
+    if (error) throw error
+
+    if (data) {
+      setProfile(data as Profile)
+      return data as Profile
+    }
+
+    const { data: newProfile, error: insertError } = await supabase
+      .from('profiles')
+      .insert({
+        user_id: currentUser.id,
+        name: currentUser.email?.split('@')[0] || 'User',
+        role: 'student',
+        bio: '',
+        avatar_url: null,
+        major: null,
+        year: null,
+        phone: null,
+        location: null,
+        linkedin_url: null,
+        website_url: null,
+        language: 'en',
+        theme: 'light',
+        privacy_profile_public: true,
+        privacy_show_email: false,
+        accessibility_font_size: 'medium',
+        accessibility_reduce_motion: false,
+        accessibility_high_contrast: false,
+      })
+      .select()
+      .single()
+
+    if (insertError) throw insertError
+
+    setProfile(newProfile as Profile)
+    return newProfile as Profile
+  }
+
+  const refreshProfile = async () => {
+    if (!user) return
+    await fetchProfile(user)
+  }
+
+  const updateProfile = async (updates: Partial<Profile>) => {
+    if (!user) return
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('user_id', user.id)
+      .select()
+      .single()
+
+    if (error) throw error
+
+    setProfile(data as Profile)
+  }
 
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      navigate('/profile', { replace: true })
-    }
-  }, [isAuthenticated, isLoading, navigate])
+    const init = async () => {
+      const { data } = await supabase.auth.getSession()
 
-  const handleSubmit = async () => {
-    if (!email.trim()) {
-      alert('Please enter your email')
-      return
-    }
+      setSession(data.session)
+      setUser(data.session?.user ?? null)
 
-    if (isLogin && !password.trim()) {
-      alert('Please enter your password')
-      return
-    }
-
-    if (!isLogin && !name.trim()) {
-      alert('Please enter your name')
-      return
-    }
-
-    setIsSubmitting(true)
-
-    try {
-      if (isLogin) {
-        await login(email.trim(), password)
+      if (data.session?.user) {
+        await fetchProfile(data.session.user)
       } else {
-        await register(email.trim(), password, name.trim(), role)
-        alert('Account created! Please login.')
-        setIsLogin(true)
-        setPassword('')
+        setProfile(null)
       }
-    } catch (err: any) {
-      alert(err.message || 'Something went wrong')
-    } finally {
-      setIsSubmitting(false)
+
+      setIsLoading(false)
+    }
+
+    init()
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+      setSession(nextSession)
+      setUser(nextSession?.user ?? null)
+
+      if (nextSession?.user) {
+        await fetchProfile(nextSession.user)
+      } else {
+        setProfile(null)
+      }
+
+      setIsLoading(false)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  const login = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (error) {
+      if (error.message.includes('Invalid login credentials')) {
+        throw new Error('Incorrect email or password')
+      }
+
+      if (error.message.toLowerCase().includes('email not confirmed')) {
+        throw new Error('Please verify your email before logging in')
+      }
+
+      throw new Error(error.message)
     }
   }
 
-  const roles = [
-    { value: 'student', label: 'Student', icon: GraduationCap },
-    { value: 'advisor', label: 'Advisor', icon: UserCheck },
-    { value: 'mentor', label: 'Mentor', icon: User }
-  ] as const
+  const register = async (
+    email: string,
+    password: string,
+    name: string,
+    role: UserRole
+  ) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth`,
+      },
+    })
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    )
+    if (error) {
+      if (error.message.includes('User already registered')) {
+        throw new Error('This email is already registered')
+      }
+
+      if (error.message.toLowerCase().includes('password')) {
+        throw new Error('Password does not meet security requirements')
+      }
+
+      throw new Error(error.message)
+    }
+
+    const userId = data.user?.id
+    if (!userId) return
+
+    const { error: profileError } = await supabase.from('profiles').insert({
+      user_id: userId,
+      name,
+      role,
+      bio: '',
+      avatar_url: null,
+      major: null,
+      year: null,
+      phone: null,
+      location: null,
+      linkedin_url: null,
+      website_url: null,
+      language: 'en',
+      theme: 'light',
+      privacy_profile_public: true,
+      privacy_show_email: false,
+      accessibility_font_size: 'medium',
+      accessibility_reduce_motion: false,
+      accessibility_high_contrast: false,
+    })
+
+    if (profileError) throw new Error(profileError.message)
+  }
+
+  const logout = async () => {
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
+
+    setUser(null)
+    setSession(null)
+    setProfile(null)
   }
 
   return (
-    <div className="min-h-screen flex">
-      <div className="hidden md:flex w-1/2 items-center justify-center p-10 text-white bg-gradient-to-br from-[#6688ecaa] via-[rgba(32,32,176,0.53)] to-orange-500">
-        <div className="max-w-md text-center space-y-4">
-          <h1 className="text-4xl font-extrabold">
-            Career Recommendation System
-          </h1>
-          <p className="text-white/80">
-            Guide your future with smart recommendations
-          </p>
-        </div>
-      </div>
-
-      <div className="w-full md:w-1/2 flex items-center justify-center p-6">
-        <Card className="w-full max-w-md">
-          <CardContent className="space-y-4 pt-6">
-            <div className="flex gap-2">
-              <Button
-                className="w-1/2"
-                variant={isLogin ? 'default' : 'outline'}
-                onClick={() => setIsLogin(true)}
-                disabled={isSubmitting}
-              >
-                Login
-              </Button>
-
-              <Button
-                className="w-1/2"
-                variant={!isLogin ? 'default' : 'outline'}
-                onClick={() => setIsLogin(false)}
-                disabled={isSubmitting}
-              >
-                Sign Up
-              </Button>
-            </div>
-
-            <Input
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={isSubmitting}
-            />
-
-            <Input
-              placeholder="Password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={isSubmitting}
-            />
-
-            {!isLogin && (
-              <>
-                <Input
-                  placeholder="Name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  disabled={isSubmitting}
-                />
-
-                <div className="grid grid-cols-3 gap-2">
-                  {roles.map((r) => {
-                    const Icon = r.icon
-
-                    return (
-                      <div
-                        key={r.value}
-                        onClick={() => !isSubmitting && setRole(r.value)}
-                        className={`border p-3 rounded cursor-pointer text-center transition ${
-                          role === r.value ? 'border-primary bg-primary/10' : ''
-                        }`}
-                      >
-                        <div className="flex justify-center mb-1">
-                          <Icon size={20} />
-                        </div>
-                        <div>{r.label}</div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </>
-            )}
-
-            <Button className="w-full" onClick={handleSubmit} disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isLogin ? 'Login' : 'Create Account'}
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        profile,
+        isLoading,
+        isAuthenticated: !!session,
+        login,
+        register,
+        logout,
+        refreshProfile,
+        updateProfile,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
   )
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext)
+  if (!context) throw new Error('useAuth must be used within AuthProvider')
+  return context
 }

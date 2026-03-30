@@ -12,7 +12,7 @@ import { toast } from 'sonner'
 import { Camera, Loader2, Save, User, MapPin, Phone, Briefcase, Globe, Linkedin, LogOut } from 'lucide-react'
 
 export default function Account() {
-  const { user, profile, refreshProfile, logout } = useAuth()
+  const { user, profile, refreshProfile, logout, updateProfile } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -78,13 +78,7 @@ export default function Account() {
 
       const avatarUrl = `${publicUrl}?v=${Date.now()}`
 
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: avatarUrl })
-        .eq('user_id', user.id)
-
-      if (updateError) throw updateError
-
+      await updateProfile({ avatar_url: avatarUrl })
       await refreshProfile()
       toast.success('Avatar updated!')
     } catch (error: any) {
@@ -95,26 +89,19 @@ export default function Account() {
   }
 
   const handleSave = async () => {
-    if (!user) return
-
     setIsSaving(true)
 
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          name: formData.name,
-          bio: formData.bio,
-          major: formData.major || null,
-          year: formData.year ? parseInt(formData.year) : null,
-          phone: formData.phone || null,
-          location: formData.location || null,
-          linkedin_url: formData.linkedin_url || null,
-          website_url: formData.website_url || null,
-        })
-        .eq('user_id', user.id)
-
-      if (error) throw error
+      await updateProfile({
+        name: formData.name,
+        bio: formData.bio,
+        major: formData.major || null,
+        year: formData.year ? parseInt(formData.year) : null,
+        phone: formData.phone || null,
+        location: formData.location || null,
+        linkedin_url: formData.linkedin_url || null,
+        website_url: formData.website_url || null,
+      })
 
       await refreshProfile()
       toast.success('Profile saved!')
