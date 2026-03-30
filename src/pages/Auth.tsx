@@ -33,6 +33,8 @@ function Auth() {
     profile,
     resetPasswordForEmail,
     updatePassword,
+    verifyEmailOtp,
+    resendSignupOtp,
   } = useAuth()
 
   const navigate = useNavigate()
@@ -50,6 +52,9 @@ function Auth() {
   const [recoveryPassword, setRecoveryPassword] = useState('')
   const [confirmRecoveryPassword, setConfirmRecoveryPassword] = useState('')
 
+  const [isVerifyMode, setIsVerifyMode] = useState(false)
+  const [verifyCode, setVerifyCode] = useState('')
+
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
       navigate(getDashboardPath(profile?.role), { replace: true })
@@ -63,10 +68,7 @@ function Auth() {
     if (hash.includes('type=recovery') || search.includes('type=recovery')) {
       setIsRecoveryMode(true)
       setIsLogin(false)
-    }
-
-    if (hash.includes('type=signup') || search.includes('type=signup')) {
-      setIsLogin(true)
+      setIsVerifyMode(false)
     }
   }, [])
 
@@ -117,10 +119,57 @@ function Auth() {
         navigate(getDashboardPath(loggedInProfile?.role), { replace: true })
       } else {
         await register(email.trim(), password, name.trim(), signupRole)
-        alert('Account created.\nPlease verify your email before logging in.')
+        alert('Account created. A verification code has been sent to your email.')
         setIsLogin(true)
+        setIsVerifyMode(true)
         setPassword('')
       }
+    } catch (err: any) {
+      alert(err.message || 'Something went wrong')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleVerifyEmail = async () => {
+    const emailError = validateEmail(email)
+    if (emailError) {
+      alert(emailError)
+      return
+    }
+
+    if (!verifyCode.trim()) {
+      alert('Please enter the verification code')
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      await verifyEmailOtp(email.trim(), verifyCode.trim())
+      alert('Email verified successfully. You can now log in.')
+      setIsVerifyMode(false)
+      setVerifyCode('')
+      setPassword('')
+    } catch (err: any) {
+      alert(err.message || 'Invalid or expired verification code')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleResendVerification = async () => {
+    const emailError = validateEmail(email)
+    if (emailError) {
+      alert(emailError)
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      await resendSignupOtp(email.trim())
+      alert('A new verification code has been sent to your email.')
     } catch (err: any) {
       alert(err.message || 'Something went wrong')
     } finally {
@@ -204,7 +253,7 @@ function Auth() {
               </p>
             </div>
 
-            {!isRecoveryMode && (
+            {!isRecoveryMode && !isVerifyMode && (
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   type="button"
@@ -226,7 +275,66 @@ function Auth() {
             )}
 
             <div className="space-y-4">
-              {!isRecoveryMode && (
+              {isVerifyMode && (
+                <>
+                  <div className="text-center space-y-2">
+                    <h2 className="text-xl font-semibold">Verify your email</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Enter the verification code sent to your email
+                    </p>
+                  </div>
+
+                  <Input
+                    type="email"
+                    placeholder="Email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={isSubmitting}
+                  />
+
+                  <Input
+                    type="text"
+                    placeholder="Verification code"
+                    value={verifyCode}
+                    onChange={(e) => setVerifyCode(e.target.value)}
+                    disabled={isSubmitting}
+                  />
+
+                  <Button
+                    type="button"
+                    onClick={handleVerifyEmail}
+                    disabled={isSubmitting}
+                    className="w-full"
+                  >
+                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Verify Email'}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleResendVerification}
+                    disabled={isSubmitting}
+                    className="w-full"
+                  >
+                    Resend Code
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setIsVerifyMode(false)
+                      setVerifyCode('')
+                    }}
+                    disabled={isSubmitting}
+                    className="w-full"
+                  >
+                    Back to Login
+                  </Button>
+                </>
+              )}
+
+              {!isVerifyMode && !isRecoveryMode && (
                 <>
                   <div className="space-y-2">
                     <Input
@@ -260,14 +368,25 @@ function Auth() {
                   </div>
 
                   {isLogin && (
-                    <button
-                      type="button"
-                      onClick={handleForgotPassword}
-                      disabled={isSubmitting}
-                      className="text-sm text-primary hover:underline text-left"
-                    >
-                      Forgot your password?
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleForgotPassword}
+                        disabled={isSubmitting}
+                        className="text-sm text-primary hover:underline text-left"
+                      >
+                        Forgot your password?
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsVerifyMode(true)}
+                        disabled={isSubmitting}
+                        className="text-sm text-primary hover:underline text-left"
+                      >
+                        Already have a verification code?
+                      </button>
+                    </>
                   )}
 
                   {!isLogin && (
