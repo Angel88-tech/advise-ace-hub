@@ -129,6 +129,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return normalized
   }
 
+  const loadProfileSafely = async (currentUser: User) => {
+    try {
+      await fetchProfile(currentUser)
+    } catch (error) {
+      console.error('Profile load error:', error)
+      setProfile(null)
+    }
+  }
+
   const refreshProfile = async () => {
     if (!user) return
     try {
@@ -197,6 +206,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setSession(null)
           setUser(null)
           setProfile(null)
+          setIsLoading(false)
           return
         }
 
@@ -209,61 +219,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setSession(null)
           setUser(null)
           setProfile(null)
+          setIsLoading(false)
           return
         }
 
         setSession(currentSession)
         setUser(userData.user)
+        setIsLoading(false)
 
-        try {
-          await fetchProfile(userData.user)
-        } catch (profileError) {
-          console.error('Failed to fetch profile:', profileError)
-          setProfile(null)
-        }
+        void loadProfileSafely(userData.user)
       } catch (error) {
         console.error('Auth init error:', error)
+        if (!mounted) return
         setSession(null)
         setUser(null)
         setProfile(null)
-      } finally {
-        if (mounted) setIsLoading(false)
+        setIsLoading(false)
       }
     }
 
     void init()
 
+    const timeout = window.setTimeout(() => {
+      if (mounted) {
+        setIsLoading(false)
+      }
+    }, 3000)
+
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
-      try {
-        if (!mounted) return
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!mounted) return
 
-        setSession(nextSession)
-        setUser(nextSession?.user ?? null)
+      setSession(nextSession)
+      setUser(nextSession?.user ?? null)
+      setIsLoading(false)
 
-        if (nextSession?.user) {
-          try {
-            await fetchProfile(nextSession.user)
-          } catch (profileError) {
-            console.error('Failed to fetch profile on auth change:', profileError)
-            setProfile(null)
-          }
-        } else {
-          setProfile(null)
-        }
-      } catch (error) {
-        console.error('Auth state change error:', error)
-        setSession(null)
-        setUser(null)
+      if (nextSession?.user) {
+        void loadProfileSafely(nextSession.user)
+      } else {
         setProfile(null)
-      } finally {
-        if (mounted) setIsLoading(false)
       }
     })
 
     return () => {
       mounted = false
+      window.clearTimeout(timeout)
       subscription.unsubscribe()
     }
   }, [])

@@ -25,6 +25,29 @@ import AdminUsersPage from './pages/admin/AdminUsersPage'
 
 const queryClient = new QueryClient()
 
+function getDashboardPath(role?: string) {
+  switch (role) {
+    case 'student':
+      return '/student/dashboard'
+    case 'advisor':
+      return '/advisor/dashboard'
+    case 'mentor':
+      return '/mentor/dashboard'
+    case 'admin':
+      return '/admin/dashboard'
+    default:
+      return '/profile'
+  }
+}
+
+function FullPageLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="text-lg font-medium text-slate-600">Loading...</div>
+    </div>
+  )
+}
+
 function ProtectedRoute({
   children,
   allowedRoles,
@@ -35,7 +58,7 @@ function ProtectedRoute({
   const { isAuthenticated, profile, isLoading } = useAuth()
 
   if (isLoading) {
-    return <div className="p-6">Loading...</div>
+    return <FullPageLoader />
   }
 
   if (!isAuthenticated) {
@@ -43,21 +66,21 @@ function ProtectedRoute({
   }
 
   if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
-    return <Navigate to="/" replace />
+    return <Navigate to={getDashboardPath(profile.role)} replace />
   }
 
   return <>{children}</>
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, profile, isLoading } = useAuth()
 
   if (isLoading) {
-    return <div className="p-6">Loading...</div>
+    return <FullPageLoader />
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/profile" replace />
+    return <Navigate to={getDashboardPath(profile?.role)} replace />
   }
 
   return <>{children}</>
