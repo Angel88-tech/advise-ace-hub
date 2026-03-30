@@ -131,7 +131,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = async () => {
     if (!user) return
-    return await fetchProfile(user)
+    try {
+      return await fetchProfile(user)
+    } catch (error) {
+      console.error('refreshProfile error:', error)
+      setProfile(null)
+      return
+    }
   }
 
   const updateProfile = async (updates: Partial<Profile>) => {
@@ -181,39 +187,88 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    let mounted = true
+
     const init = async () => {
-      const { data } = await supabase.auth.getSession()
+      try {
+        const { data: sessionData } = await supabase.auth.getSession()
+        const currentSession = sessionData.session
 
-      setSession(data.session)
-      setUser(data.session?.user ?? null)
+        if (!mounted) return
 
-      if (data.session?.user) {
-        await fetchProfile(data.session.user)
-      } else {
+        if (!currentSession) {
+          setSession(null)
+          setUser(null)
+          setProfile(null)
+          return
+        }
+
+        const { data: userData, error: userError } = await supabase.auth.getUser()
+
+        if (!mounted) return
+
+        if (userError || !userData.user) {
+          await supabase.auth.signOut()
+          setSession(null)
+          setUser(null)
+          setProfile(null)
+          return
+        }
+
+        setSession(currentSession)
+        setUser(userData.user)
+
+        try {
+          await fetchProfile(userData.user)
+        } catch (profileError) {
+          console.error('Failed to fetch profile:', profileError)
+          setProfile(null)
+        }
+      } catch (error) {
+        console.error('Auth init error:', error)
+        setSession(null)
+        setUser(null)
         setProfile(null)
+      } finally {
+        if (mounted) setIsLoading(false)
       }
-
-      setIsLoading(false)
     }
 
-    init()
+    void init()
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
-      setSession(nextSession)
-      setUser(nextSession?.user ?? null)
+      try {
+        if (!mounted) return
 
-      if (nextSession?.user) {
-        await fetchProfile(nextSession.user)
-      } else {
+        setSession(nextSession)
+        setUser(nextSession?.user ?? null)
+
+        if (nextSession?.user) {
+          try {
+            await fetchProfile(nextSession.user)
+          } catch (profileError) {
+            console.error('Failed to fetch profile on auth change:', profileError)
+            setProfile(null)
+          }
+        } else {
+          setProfile(null)
+        }
+      } catch (error) {
+        console.error('Auth state change error:', error)
+        setSession(null)
+        setUser(null)
         setProfile(null)
+      } finally {
+        if (mounted) setIsLoading(false)
       }
-
-      setIsLoading(false)
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   const login = async (email: string, password: string, expectedRole?: UserRole) => {
@@ -237,7 +292,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const currentUser = data.user
     if (!currentUser) return null
 
-    const currentProfile = await fetchProfile(currentUser)
+    let currentProfile: Profile | null = null
+
+    try {
+      currentProfile = await fetchProfile(currentUser)
+    } catch (profileError) {
+      console.error('Login fetchProfile error:', profileError)
+      throw new Error('Unable to load user profile')
+    }
 
     if (expectedRole === 'admin') {
       const { data: allowlistData, error: allowlistError } = await getAdminAllowlistTable()
@@ -338,12 +400,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = async () => {
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
-
-    setUser(null)
-    setSession(null)
-    setProfile(null)
+    try {
+      await supabase.auth.signOut()
+    } catch (error) {
+      console.error('logout error:', error)
+    } finally {
+      setUser(null)
+      setSession(null)
+      setProfile(null)
+    }
   }
 
   return (
