@@ -131,62 +131,73 @@ export default function AdminUsersPage({ type }: AdminUsersPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f6f6f6]">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100">
       <Navbar />
 
       <div className="max-w-7xl mx-auto px-6 py-10">
-        <div className="flex items-center justify-center gap-4 mb-10">
+        <div className="flex items-center justify-center gap-4 mb-10 flex-wrap">
           <Link
             to="/admin/students"
-            className={`px-5 py-2 rounded-md border ${
-              type === 'student' ? 'bg-slate-700 text-white' : 'bg-white'
+            className={`px-6 py-3 rounded-xl border font-medium transition ${
+              type === 'student'
+                ? 'bg-slate-700 text-white border-slate-700 shadow-sm'
+                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
             }`}
           >
             Students
           </Link>
+
           <Link
             to="/admin/advisors"
-            className={`px-5 py-2 rounded-md border ${
-              type === 'advisor' ? 'bg-slate-700 text-white' : 'bg-white'
+            className={`px-6 py-3 rounded-xl border font-medium transition ${
+              type === 'advisor'
+                ? 'bg-slate-700 text-white border-slate-700 shadow-sm'
+                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
             }`}
           >
             Advisors
           </Link>
+
           <Link
             to="/admin/mentors"
-            className={`px-5 py-2 rounded-md border ${
-              type === 'mentor' ? 'bg-slate-700 text-white' : 'bg-white'
+            className={`px-6 py-3 rounded-xl border font-medium transition ${
+              type === 'mentor'
+                ? 'bg-slate-700 text-white border-slate-700 shadow-sm'
+                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
             }`}
           >
             Mentors
           </Link>
         </div>
 
-        <h1 className="text-5xl font-bold text-center mb-10">{titleMap[type]}</h1>
+        <h1 className="text-5xl font-bold text-center text-slate-800 mb-10">
+          {titleMap[type]}
+        </h1>
 
-        <div className="bg-white border rounded-sm p-6 shadow-sm">
+        <div className="bg-white/95 border border-slate-200 rounded-2xl p-6 shadow-md">
           <div className="grid lg:grid-cols-[1.6fr_0.9fr] gap-8 items-start">
-            <div className="overflow-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="border-b font-semibold">
-                    <th className="text-left py-3 px-2">ID</th>
-                    <th className="text-left py-3 px-2">Name</th>
-                    <th className="text-left py-3 px-2">User ID</th>
-                    <th className="text-left py-3 px-2">User Type</th>
-                    <th className="text-left py-3 px-2">Email</th>
+            <div className="overflow-auto rounded-xl border border-slate-200 bg-white">
+              <table className="w-full text-sm border-collapse text-slate-700">
+                <thead className="bg-slate-100">
+                  <tr className="border-b border-slate-200 font-semibold text-slate-800">
+                    <th className="text-left py-4 px-3">ID</th>
+                    <th className="text-left py-4 px-3">Name</th>
+                    <th className="text-left py-4 px-3">User ID</th>
+                    <th className="text-left py-4 px-3">User Type</th>
+                    <th className="text-left py-4 px-3">Email</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={5} className="py-6 px-2 text-center">
+                      <td colSpan={5} className="py-8 px-3 text-center text-slate-500">
                         Loading...
                       </td>
                     </tr>
                   ) : users.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-6 px-2 text-center">
+                      <td colSpan={5} className="py-8 px-3 text-center text-slate-500">
                         No users found
                       </td>
                     </tr>
@@ -195,15 +206,17 @@ export default function AdminUsersPage({ type }: AdminUsersPageProps) {
                       <tr
                         key={user.id}
                         onClick={() => selectUser(user)}
-                        className={`border-b cursor-pointer hover:bg-gray-50 ${
-                          selected?.id === user.id ? 'bg-gray-100' : ''
+                        className={`border-b border-slate-200 cursor-pointer transition ${
+                          selected?.id === user.id
+                            ? 'bg-blue-50'
+                            : 'hover:bg-slate-50'
                         }`}
                       >
-                        <td className="py-3 px-2">{index + 1}</td>
-                        <td className="py-3 px-2">{user.name}</td>
-                        <td className="py-3 px-2 break-all">{user.user_id}</td>
-                        <td className="py-3 px-2 capitalize">{user.role}</td>
-                        <td className="py-3 px-2 break-all">{user.email}</td>
+                        <td className="py-3 px-3 text-slate-700">{index + 1}</td>
+                        <td className="py-3 px-3 text-slate-800 font-medium">{user.name}</td>
+                        <td className="py-3 px-3 break-all text-slate-600">{user.user_id}</td>
+                        <td className="py-3 px-3 capitalize text-slate-700">{user.role}</td>
+                        <td className="py-3 px-3 break-all text-slate-600">{user.email}</td>
                       </tr>
                     ))
                   )}
@@ -213,28 +226,28 @@ export default function AdminUsersPage({ type }: AdminUsersPageProps) {
 
             <div className="space-y-4">
               <input
-                className="w-full border rounded-md px-4 py-3 outline-none"
+                className="w-full border border-slate-300 bg-white text-slate-800 placeholder:text-slate-400 rounded-xl px-4 py-3 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
                 placeholder="Full Name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
 
               <input
-                className="w-full border rounded-md px-4 py-3 outline-none"
+                className="w-full border border-slate-300 bg-white text-slate-800 placeholder:text-slate-400 rounded-xl px-4 py-3 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
                 placeholder="E-Mail"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
 
               <input
-                className="w-full border rounded-md px-4 py-3 outline-none bg-gray-50"
+                className="w-full border border-slate-300 bg-slate-50 text-slate-700 placeholder:text-slate-400 rounded-xl px-4 py-3 outline-none"
                 placeholder="User ID"
                 value={selected?.user_id || ''}
                 readOnly
               />
 
               <select
-                className="w-full border rounded-md px-4 py-3 outline-none"
+                className="w-full border border-slate-300 bg-white text-slate-800 rounded-xl px-4 py-3 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
                 value={role}
                 onChange={(e) => setRole(e.target.value as ManagedRole)}
               >
@@ -242,33 +255,33 @@ export default function AdminUsersPage({ type }: AdminUsersPageProps) {
                 <option value="advisor">Advisor</option>
                 <option value="mentor">Mentor</option>
               </select>
+
+              <div className="pt-2 space-y-3">
+                <button
+                  type="button"
+                  onClick={handleUpdate}
+                  className="w-full bg-slate-700 hover:bg-slate-800 text-white py-3 rounded-xl font-medium transition"
+                >
+                  Update user
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-medium transition"
+                >
+                  Delete user
+                </button>
+
+                <button
+                  type="button"
+                  onClick={clearForm}
+                  className="w-full bg-slate-500 hover:bg-slate-600 text-white py-3 rounded-xl font-medium transition"
+                >
+                  Clear selection
+                </button>
+              </div>
             </div>
-          </div>
-
-          <div className="mt-8 space-y-2">
-            <button
-              type="button"
-              onClick={handleUpdate}
-              className="w-full bg-slate-600 hover:bg-slate-700 text-white py-3 rounded-md"
-            >
-              Update user
-            </button>
-
-            <button
-              type="button"
-              onClick={handleDelete}
-              className="w-full bg-slate-600 hover:bg-slate-700 text-white py-3 rounded-md"
-            >
-              Delete user
-            </button>
-
-            <button
-              type="button"
-              onClick={clearForm}
-              className="w-full bg-slate-500 hover:bg-slate-600 text-white py-3 rounded-md"
-            >
-              Clear selection
-            </button>
           </div>
         </div>
       </div>
