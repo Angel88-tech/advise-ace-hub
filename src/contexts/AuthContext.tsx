@@ -95,6 +95,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    // 🔥 مهم: استرجاع الجلسة أول شيء
+    const init = async () => {
+      const { data } = await supabase.auth.getSession()
+
+      setSession(data.session)
+      setUser(data.session?.user ?? null)
+
+      if (data.session?.user) {
+        await createProfileIfNotExists(data.session.user)
+      }
+
+      setIsLoading(false)
+    }
+
+    init()
+
+    // 🔥 الاستماع للتغيرات (login / logout / magic link)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setSession(session)
@@ -105,21 +122,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setProfile(null)
         }
-
-        setIsLoading(false)
       }
     )
-
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-
-      if (session?.user) {
-        await createProfileIfNotExists(session.user)
-      }
-
-      setIsLoading(false)
-    })
 
     return () => subscription.unsubscribe()
   }, [])
@@ -178,7 +182,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       options: {
         emailRedirectTo: window.location.origin + '/auth',
-        shouldCreateUser: true,
       },
     })
 
@@ -191,7 +194,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = async () => {
-    await supabase.auth.signOut()
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
+
     setUser(null)
     setSession(null)
     setProfile(null)
