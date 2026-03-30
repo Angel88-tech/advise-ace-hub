@@ -18,26 +18,41 @@ export default function Auth() {
   const [isLogin, setIsLogin] = useState(true)
   const [cooldown, setCooldown] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isCheckingLink, setIsCheckingLink] = useState(true)
 
-  // 🔥 مهم: التقاط session من magic link
   useEffect(() => {
-    const handleSession = async () => {
-      const { data } = await supabase.auth.getSession()
+    const handleMagicLinkSession = async () => {
+      try {
+        const url = new URL(window.location.href)
+        const code = url.searchParams.get('code')
 
-      if (data.session) {
-        navigate('/profile', { replace: true })
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code)
+          if (error) throw error
+          navigate('/profile', { replace: true })
+          return
+        }
+
+        const { data } = await supabase.auth.getSession()
+        if (data.session) {
+          navigate('/profile', { replace: true })
+          return
+        }
+      } catch (err: any) {
+        alert(err.message || 'Failed to verify magic link')
+      } finally {
+        setIsCheckingLink(false)
       }
     }
 
-    handleSession()
-  }, [])
+    handleMagicLinkSession()
+  }, [navigate])
 
-  // 🔥 redirect بعد login
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
+    if (!isLoading && !isCheckingLink && isAuthenticated) {
       navigate('/profile', { replace: true })
     }
-  }, [isAuthenticated, isLoading, navigate])
+  }, [isAuthenticated, isLoading, isCheckingLink, navigate])
 
   const handleSubmit = async () => {
     if (!email.trim()) {
@@ -88,11 +103,9 @@ export default function Auth() {
 
     try {
       await loginWithMagicLink(email.trim())
-
       alert(
-        'Magic link sent!\n\n⚠️ IMPORTANT:\nOpen the link on the SAME device and browser you requested it from.'
+        'Magic link sent!\n\n⚠️ IMPORTANT:\nOpen the link on the SAME device and in the SAME browser you requested it from.'
       )
-
       setCooldown(true)
       setTimeout(() => setCooldown(false), 30000)
     } catch (err: any) {
@@ -108,7 +121,7 @@ export default function Auth() {
     { value: 'mentor', label: 'Mentor', icon: User }
   ] as const
 
-  if (isLoading) {
+  if (isLoading || isCheckingLink) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -132,7 +145,6 @@ export default function Auth() {
       <div className="w-full md:w-1/2 flex items-center justify-center p-6">
         <Card className="w-full max-w-md">
           <CardContent className="space-y-4 pt-6">
-
             <div className="flex gap-2">
               <Button
                 className="w-1/2"
@@ -216,7 +228,6 @@ export default function Auth() {
             <p className="text-xs text-center text-muted-foreground">
               ⚠️ Magic link only works on the same device and browser you requested it from.
             </p>
-
           </CardContent>
         </Card>
       </div>

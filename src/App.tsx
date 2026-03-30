@@ -22,7 +22,13 @@ import MentorDashboard from "./pages/mentor/MentorDashboard";
 
 const queryClient = new QueryClient();
 
-function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
+function ProtectedRoute({
+  children,
+  allowedRoles,
+}: {
+  children: React.ReactNode;
+  allowedRoles?: string[];
+}) {
   const { isAuthenticated, profile, isLoading } = useAuth();
 
   if (isLoading) {
@@ -60,36 +66,85 @@ function AppRoutes() {
       <Route path="/" element={<Landing />} />
       <Route path="/chat" element={<Chat />} />
 
-      <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
+      <Route
+        path="/auth"
+        element={
+          <PublicRoute>
+            <Auth />
+          </PublicRoute>
+        }
+      />
 
-      <Route path="/profile" element={<ProtectedRoute><Account /></ProtectedRoute>} />
-      <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <Account />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <Settings />
+          </ProtectedRoute>
+        }
+      />
 
       <Route
         path="/student/dashboard"
-        element={<ProtectedRoute allowedRoles={['student']}><StudentDashboard /></ProtectedRoute>}
+        element={
+          <ProtectedRoute allowedRoles={["student"]}>
+            <StudentDashboard />
+          </ProtectedRoute>
+        }
       />
+
       <Route
         path="/student/recommendations"
-        element={<ProtectedRoute allowedRoles={['student']}><Recommendations /></ProtectedRoute>}
+        element={
+          <ProtectedRoute allowedRoles={["student"]}>
+            <Recommendations />
+          </ProtectedRoute>
+        }
       />
+
       <Route
         path="/student/mentors"
-        element={<ProtectedRoute allowedRoles={['student']}><Mentors /></ProtectedRoute>}
+        element={
+          <ProtectedRoute allowedRoles={["student"]}>
+            <Mentors />
+          </ProtectedRoute>
+        }
       />
+
       <Route
         path="/student/skills"
-        element={<ProtectedRoute allowedRoles={['student']}><SkillGapAnalysis /></ProtectedRoute>}
+        element={
+          <ProtectedRoute allowedRoles={["student"]}>
+            <SkillGapAnalysis />
+          </ProtectedRoute>
+        }
       />
 
       <Route
         path="/advisor/dashboard"
-        element={<ProtectedRoute allowedRoles={['advisor']}><AdvisorDashboard /></ProtectedRoute>}
+        element={
+          <ProtectedRoute allowedRoles={["advisor"]}>
+            <AdvisorDashboard />
+          </ProtectedRoute>
+        }
       />
 
       <Route
         path="/mentor/dashboard"
-        element={<ProtectedRoute allowedRoles={['mentor']}><MentorDashboard /></ProtectedRoute>}
+        element={
+          <ProtectedRoute allowedRoles={["mentor"]}>
+            <MentorDashboard />
+          </ProtectedRoute>
+        }
       />
 
       <Route path="*" element={<NotFound />} />
