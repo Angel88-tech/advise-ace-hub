@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { supabase } from '@/integrations/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { GraduationCap, UserCheck, User, Loader2 } from 'lucide-react'
 
 export default function Auth() {
-  const { login, register, loginWithMagicLink, isAuthenticated, isLoading } = useAuth()
+  const { login, register, isAuthenticated, isLoading } = useAuth()
   const navigate = useNavigate()
 
   const [email, setEmail] = useState('')
@@ -16,51 +15,13 @@ export default function Auth() {
   const [name, setName] = useState('')
   const [role, setRole] = useState<'student' | 'advisor' | 'mentor'>('student')
   const [isLogin, setIsLogin] = useState(true)
-  const [cooldown, setCooldown] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isCheckingLink, setIsCheckingLink] = useState(true)
 
   useEffect(() => {
-    const handleMagicLinkSession = async () => {
-      try {
-        const url = new URL(window.location.href)
-        const code = url.searchParams.get('code')
-
-        if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code)
-          if (error) throw error
-        }
-
-        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
-        const hasHashTokens =
-          hashParams.get('access_token') && hashParams.get('refresh_token')
-
-        if (hasHashTokens) {
-          await new Promise((resolve) => setTimeout(resolve, 800))
-        }
-
-        const { data, error } = await supabase.auth.getSession()
-        if (error) throw error
-
-        if (data.session) {
-          navigate('/profile', { replace: true })
-          return
-        }
-      } catch (err: any) {
-        alert(err.message || 'Failed to verify magic link')
-      } finally {
-        setIsCheckingLink(false)
-      }
-    }
-
-    handleMagicLinkSession()
-  }, [navigate])
-
-  useEffect(() => {
-    if (!isLoading && !isCheckingLink && isAuthenticated) {
+    if (!isLoading && isAuthenticated) {
       navigate('/profile', { replace: true })
     }
-  }, [isAuthenticated, isLoading, isCheckingLink, navigate])
+  }, [isAuthenticated, isLoading, navigate])
 
   const handleSubmit = async () => {
     if (!email.trim()) {
@@ -96,42 +57,13 @@ export default function Auth() {
     }
   }
 
-  const handleMagicLink = async () => {
-    if (!email.trim()) {
-      alert('Please enter your email first')
-      return
-    }
-
-    if (cooldown) {
-      alert('Please wait before requesting another link')
-      return
-    }
-
-    setIsSubmitting(true)
-
-    try {
-      await loginWithMagicLink(email.trim())
-
-      alert(
-        'Magic link sent!\n\n⚠️ IMPORTANT:\nOpen the link on the SAME device and in the SAME browser you requested it from.'
-      )
-
-      setCooldown(true)
-      setTimeout(() => setCooldown(false), 30000)
-    } catch (err: any) {
-      alert(err.message || 'Failed to send magic link')
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
   const roles = [
     { value: 'student', label: 'Student', icon: GraduationCap },
     { value: 'advisor', label: 'Advisor', icon: UserCheck },
     { value: 'mentor', label: 'Mentor', icon: User }
   ] as const
 
-  if (isLoading || isCheckingLink) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -225,19 +157,6 @@ export default function Auth() {
             <Button className="w-full" onClick={handleSubmit} disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isLogin ? 'Login' : 'Create Account'}
             </Button>
-
-            <Button
-              className="w-full"
-              variant="secondary"
-              onClick={handleMagicLink}
-              disabled={cooldown || isSubmitting}
-            >
-              {cooldown ? 'Wait 30s...' : 'Magic Link'}
-            </Button>
-
-            <p className="text-xs text-center text-muted-foreground">
-              ⚠️ Magic link only works on the same device and browser you requested it from.
-            </p>
           </CardContent>
         </Card>
       </div>
