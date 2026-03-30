@@ -18,7 +18,7 @@ const getDashboardPath = (role?: UserRole) => {
     case 'mentor':
       return '/mentor/dashboard'
     case 'admin':
-      return '/admin/students'
+      return '/admin/dashboard'
     default:
       return '/profile'
   }
@@ -31,8 +31,7 @@ export default function Auth() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
-  const [signupRole, setSignupRole] = useState<'student' | 'advisor' | 'mentor'>('student')
-  const [loginRole, setLoginRole] = useState<UserRole>('student')
+  const [signupRole, setSignupRole] = useState<UserRole>('student')
   const [isLogin, setIsLogin] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -85,7 +84,7 @@ export default function Auth() {
 
     try {
       if (isLogin) {
-        const loggedInProfile = await login(email.trim(), password, loginRole)
+        const loggedInProfile = await login(email.trim(), password)
         navigate(getDashboardPath(loggedInProfile?.role), { replace: true })
       } else {
         await register(email.trim(), password, name.trim(), signupRole)
@@ -100,20 +99,12 @@ export default function Auth() {
     }
   }
 
-  const loginRoles = [
+  const signupRoles = [
     { value: 'student', label: 'Student', icon: GraduationCap },
     { value: 'advisor', label: 'Advisor', icon: UserCheck },
     { value: 'mentor', label: 'Mentor', icon: User },
     { value: 'admin', label: 'Admin', icon: Shield },
   ] as const
-
-  const signupRoles = [
-    { value: 'student', label: 'Student', icon: GraduationCap },
-    { value: 'advisor', label: 'Advisor', icon: UserCheck },
-    { value: 'mentor', label: 'Mentor', icon: User },
-  ] as const
-
-  const roles = isLogin ? loginRoles : signupRoles
 
   if (isLoading) {
     return (
@@ -183,50 +174,43 @@ export default function Auth() {
             )}
           </div>
 
-          <div className="space-y-3">
-            <p className="text-sm font-medium">
-              {isLogin ? 'Choose portal' : 'Choose account type'}
-            </p>
+          {!isLogin && (
+            <div className="space-y-3">
+              <p className="text-sm font-medium">Choose account type</p>
 
-            <div className="grid grid-cols-2 gap-3">
-              {roles.map((r) => {
-                const Icon = r.icon
-                const selected = isLogin ? loginRole === r.value : signupRole === r.value
+              <div className="grid grid-cols-2 gap-3">
+                {signupRoles.map((r) => {
+                  const Icon = r.icon
+                  const selected = signupRole === r.value
 
-                return (
-                  <button
-                    key={r.value}
-                    type="button"
-                    onClick={() => {
-                      if (isSubmitting) return
+                  return (
+                    <button
+                      key={r.value}
+                      type="button"
+                      onClick={() => {
+                        if (isSubmitting) return
+                        setSignupRole(r.value as UserRole)
+                      }}
+                      className={`border rounded-lg p-4 text-left transition ${
+                        selected
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border hover:border-primary/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon className="h-5 w-5" />
+                        <span className="font-medium">{r.label}</span>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
 
-                      if (isLogin) {
-                        setLoginRole(r.value as UserRole)
-                      } else if (r.value !== 'admin') {
-                        setSignupRole(r.value)
-                      }
-                    }}
-                    className={`border rounded-lg p-4 text-left transition ${
-                      selected
-                        ? 'border-primary bg-primary/10'
-                        : 'border-border hover:border-primary/50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Icon className="h-5 w-5" />
-                      <span className="font-medium">{r.label}</span>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-
-            {!isLogin && (
               <p className="text-xs text-muted-foreground">
-                Admin accounts are assigned only from Supabase.
+                Admin account creation is allowed only for emails added in Supabase admin_allowlist.
               </p>
-            )}
-          </div>
+            </div>
+          )}
 
           <Button className="w-full" onClick={handleSubmit} disabled={isSubmitting}>
             {isSubmitting ? (

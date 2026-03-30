@@ -36,12 +36,12 @@ interface AuthContextType {
   isLoading: boolean
   isAuthenticated: boolean
   login: (email: string, password: string, expectedRole?: UserRole) => Promise<Profile | null>
-  register: (
-    email: string,
-    password: string,
-    name: string,
-    role: Exclude<UserRole, 'admin'>
-  ) => Promise<void>
+ register: (
+  email: string,
+  password: string,
+  name: string,
+  role: UserRole
+) => Promise<void>
   logout: () => Promise<void>
   refreshProfile: () => Promise<Profile | undefined>
   updateProfile: (updates: Partial<Profile>) => Promise<void>
@@ -260,61 +260,76 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return currentProfile
   }
 
-  const register = async (
-    email: string,
-    password: string,
-    name: string,
-    role: Exclude<UserRole, 'admin'>
-  ) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth`,
-      },
-    })
+ const register = async (
+  email: string,
+  password: string,
+  name: string,
+  role: UserRole
+) => {
+  if (role === 'admin') {
+    const { data: allowlistData, error: allowlistError } = await getAdminAllowlistTable()
+      .select('email')
+      .eq('email', email.trim())
+      .maybeSingle()
 
-    if (error) {
-      if (error.message.includes('User already registered')) {
-        throw new Error('This email is already registered')
-      }
-
-      if (error.message.toLowerCase().includes('password')) {
-        throw new Error('Password does not meet security requirements')
-      }
-
-      throw new Error(error.message)
+    if (allowlistError) {
+      throw new Error(allowlistError.message)
     }
 
-    const userId = data.user?.id
-    if (!userId) return
-
-    const payload = {
-      user_id: userId,
-      name,
-      email,
-      role,
-      bio: '',
-      avatar_url: null,
-      major: null,
-      year: null,
-      phone: null,
-      location: null,
-      linkedin_url: null,
-      website_url: null,
-      language: 'en',
-      theme: 'light',
-      privacy_profile_public: true,
-      privacy_show_email: false,
-      accessibility_font_size: 'medium',
-      accessibility_reduce_motion: false,
-      accessibility_high_contrast: false,
+    if (!allowlistData) {
+      throw new Error('This email is not allowed to create an admin account')
     }
-
-    const { error: profileError } = await getProfilesTable().insert(payload)
-
-    if (profileError) throw new Error(profileError.message)
   }
+
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: `${window.location.origin}/auth`,
+    },
+  })
+
+  if (error) {
+    if (error.message.includes('User already registered')) {
+      throw new Error('This email is already registered')
+    }
+
+    if (error.message.toLowerCase().includes('password')) {
+      throw new Error('Password does not meet security requirements')
+    }
+
+    throw new Error(error.message)
+  }
+
+  const userId = data.user?.id
+  if (!userId) return
+
+  const payload = {
+    user_id: userId,
+    name,
+    email,
+    role,
+    bio: '',
+    avatar_url: null,
+    major: null,
+    year: null,
+    phone: null,
+    location: null,
+    linkedin_url: null,
+    website_url: null,
+    language: 'en',
+    theme: 'light',
+    privacy_profile_public: true,
+    privacy_show_email: false,
+    accessibility_font_size: 'medium',
+    accessibility_reduce_motion: false,
+    accessibility_high_contrast: false,
+  }
+
+  const { error: profileError } = await getProfilesTable().insert(payload)
+
+  if (profileError) throw new Error(profileError.message)
+}
 
   const logout = async () => {
     const { error } = await supabase.auth.signOut()
