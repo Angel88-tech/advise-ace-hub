@@ -162,10 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error
 
     if (user) {
-      await getProfilesTable()
-        .update({ email: newEmail })
-        .eq('user_id', user.id)
-
+      await getProfilesTable().update({ email: newEmail }).eq('user_id', user.id)
       await refreshProfile()
     }
   }
