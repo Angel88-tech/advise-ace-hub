@@ -141,7 +141,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadProfileSafely = async (currentUser: User) => {
     try {
       await fetchProfile(currentUser)
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        console.warn('Profile request aborted')
+        return
+      }
+
       console.error('Profile load error:', error)
       setProfile(null)
     }
@@ -149,9 +154,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = async () => {
     if (!user) return
+
     try {
       return await fetchProfile(user)
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        console.warn('refreshProfile aborted')
+        return
+      }
+
       console.error('refreshProfile error:', error)
       setProfile(null)
       return
@@ -206,8 +217,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const init = async () => {
       try {
-        const { data: sessionData } = await supabase.auth.getSession()
-        const currentSession = sessionData.session
+        const { data } = await supabase.auth.getSession()
+        const currentSession = data.session
 
         if (!mounted) return
 
@@ -215,12 +226,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(currentSession?.user ?? null)
 
         if (currentSession?.user) {
-          await loadProfileSafely(currentSession.user)
+          loadProfileSafely(currentSession.user).catch(() => {})
         } else {
           setProfile(null)
         }
       } catch (error) {
-        console.error('Auth init error:', error)
+        console.warn('Auth init warning:', error)
         if (!mounted) return
         setSession(null)
         setUser(null)
@@ -236,21 +247,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!mounted) return
 
       setSession(nextSession)
       setUser(nextSession?.user ?? null)
 
       if (nextSession?.user) {
-        await loadProfileSafely(nextSession.user)
+        loadProfileSafely(nextSession.user).catch(() => {})
       } else {
         setProfile(null)
       }
 
-      if (mounted) {
-        setIsLoading(false)
-      }
+      setIsLoading(false)
     })
 
     return () => {
