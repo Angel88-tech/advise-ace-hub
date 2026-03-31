@@ -22,7 +22,6 @@ export default function Account() {
     name: '',
     bio: '',
     major: '',
-    year: '',
     phone: '',
     location: '',
     linkedin_url: '',
@@ -34,7 +33,6 @@ export default function Account() {
       name: profile?.name || '',
       bio: profile?.bio || '',
       major: profile?.major || '',
-      year: profile?.year?.toString() || '',
       phone: profile?.phone || '',
       location: profile?.location || '',
       linkedin_url: profile?.linkedin_url || '',
@@ -63,7 +61,7 @@ export default function Account() {
     setIsUploading(true)
 
     try {
-      const ext = file.name.split('.').pop()
+      const ext = file.name.split('.').pop() || 'jpg'
       const filePath = `${user.id}/avatar.${ext}`
 
       const { error: uploadError } = await supabase.storage
@@ -85,6 +83,9 @@ export default function Account() {
       toast.error(error.message || 'Failed to upload avatar')
     } finally {
       setIsUploading(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
     }
   }
 
@@ -96,7 +97,6 @@ export default function Account() {
         name: formData.name,
         bio: formData.bio,
         major: formData.major || null,
-        year: formData.year ? parseInt(formData.year) : null,
         phone: formData.phone || null,
         location: formData.location || null,
         linkedin_url: formData.linkedin_url || null,
@@ -117,11 +117,8 @@ export default function Account() {
 
     try {
       await logout()
-      toast.success('Logged out successfully')
-      window.location.href = '/auth'
     } catch (error: any) {
       toast.error(error.message || 'Failed to log out')
-    } finally {
       setIsLoggingOut(false)
     }
   }
@@ -130,21 +127,21 @@ export default function Account() {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <main className="container mx-auto px-4 py-8 max-w-3xl">
-        <div className="flex items-center justify-between gap-4 mb-8">
+      <main className="container mx-auto max-w-3xl px-4 py-8">
+        <div className="mb-8 flex items-center justify-between gap-4">
           <h1 className="font-display text-3xl font-bold">My Account</h1>
 
           <Button variant="outline" onClick={handleLogout} disabled={isLoggingOut}>
             {isLoggingOut ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
-              <LogOut className="h-4 w-4 mr-2" />
+              <LogOut className="mr-2 h-4 w-4" />
             )}
             Logout
           </Button>
         </div>
 
-        <Card variant="elevated" className="mb-6">
+        <Card className="mb-6">
           <CardHeader>
             <CardTitle className="text-lg">Profile Photo</CardTitle>
             <CardDescription>Click the avatar to upload a new photo</CardDescription>
@@ -152,19 +149,19 @@ export default function Account() {
 
           <CardContent className="flex items-center gap-6">
             <div
-              className="relative group cursor-pointer"
+              className="relative cursor-pointer group"
               onClick={() => fileInputRef.current?.click()}
             >
               <Avatar className="h-24 w-24">
-                <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.name} />
+                <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.name || 'User'} />
                 <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
                   {profile?.name?.charAt(0) || 'U'}
                 </AvatarFallback>
               </Avatar>
 
-              <div className="absolute inset-0 rounded-full bg-foreground/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+              <div className="absolute inset-0 flex items-center justify-center rounded-full bg-foreground/40 opacity-0 transition-opacity group-hover:opacity-100">
                 {isUploading ? (
-                  <Loader2 className="h-6 w-6 text-primary-foreground animate-spin" />
+                  <Loader2 className="h-6 w-6 animate-spin text-primary-foreground" />
                 ) : (
                   <Camera className="h-6 w-6 text-primary-foreground" />
                 )}
@@ -182,21 +179,21 @@ export default function Account() {
             <div>
               <p className="font-medium">{profile?.name || 'Your Name'}</p>
               <p className="text-sm text-muted-foreground">{user?.email}</p>
-              <p className="text-xs text-muted-foreground capitalize mt-1">{profile?.role}</p>
+              <p className="mt-1 text-xs capitalize text-muted-foreground">{profile?.role}</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card variant="elevated" className="mb-6">
+        <Card className="mb-6">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-lg">
               <User className="h-5 w-5 text-primary" />
               Personal Information
             </CardTitle>
           </CardHeader>
 
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name</Label>
                 <Input
@@ -220,7 +217,7 @@ export default function Account() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="location" className="flex items-center gap-1">
                   <MapPin className="h-3 w-3" />
@@ -261,9 +258,9 @@ export default function Account() {
           </CardContent>
         </Card>
 
-        <Card variant="elevated" className="mb-6">
+        <Card className="mb-6">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-lg">
               <Globe className="h-5 w-5 text-primary" />
               Links
             </CardTitle>
@@ -298,11 +295,11 @@ export default function Account() {
           </CardContent>
         </Card>
 
-        <Button variant="gradient" className="w-full" onClick={handleSave} disabled={isSaving}>
+        <Button className="w-full" onClick={handleSave} disabled={isSaving}>
           {isSaving ? (
-            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
-            <Save className="h-4 w-4 mr-2" />
+            <Save className="mr-2 h-4 w-4" />
           )}
           Save Changes
         </Button>

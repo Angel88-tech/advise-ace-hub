@@ -56,15 +56,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const getProfilesTable = () => (supabase as any).from('profiles')
   const getAdminAllowlistTable = () => (supabase as any).from('admin_allowlist')
 
-  const clearAuthStorage = () => {
-    Object.keys(localStorage).forEach((key) => {
-      if (key.toLowerCase().includes('supabase')) {
-        localStorage.removeItem(key)
-      }
-    })
-    sessionStorage.clear()
-  }
-
   const normalizeProfile = (data: any, currentUser?: User): Profile => ({
     id: data?.id ?? '',
     user_id: data?.user_id ?? currentUser?.id ?? '',
@@ -97,43 +88,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .maybeSingle()
 
     if (error) throw error
+    if (!data) throw new Error('Profile not found')
 
-    if (data) {
-      const normalized = normalizeProfile(data, currentUser)
-      setProfile(normalized)
-      return normalized
-    }
-
-    const payload = {
-      user_id: currentUser.id,
-      name: currentUser.email?.split('@')[0] || 'User',
-      email: currentUser.email ?? '',
-      role: 'student',
-      bio: '',
-      avatar_url: null,
-      major: null,
-      year: null,
-      phone: null,
-      location: null,
-      linkedin_url: null,
-      website_url: null,
-      language: 'en',
-      theme: 'light',
-      privacy_profile_public: true,
-      privacy_show_email: false,
-      accessibility_font_size: 'medium',
-      accessibility_reduce_motion: false,
-      accessibility_high_contrast: false,
-    }
-
-    const { data: newProfile, error: insertError } = await getProfilesTable()
-      .insert(payload)
-      .select('*')
-      .single()
-
-    if (insertError) throw insertError
-
-    const normalized = normalizeProfile(newProfile, currentUser)
+    const normalized = normalizeProfile(data, currentUser)
     setProfile(normalized)
     return normalized
   }
@@ -225,7 +182,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (userError || !userData.user) {
           await supabase.auth.signOut()
-          clearAuthStorage()
           setSession(null)
           setUser(null)
           setProfile(null)
@@ -280,12 +236,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const login = async (email: string, password: string, expectedRole?: UserRole) => {
-    try {
-      await supabase.auth.signOut()
-    } catch {}
-
-    clearAuthStorage()
-
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -304,7 +254,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const currentUser = data.user
-    if (!currentUser) return null
+
+    if (!currentUser) {
+      throw new Error('Unable to complete login')
+    }
+
+    if (!currentUser.email_confirmed_at) {
+      await supabase.auth.signOut()
+      throw new Error('Please verify your email before logging in')
+    }
 
     let currentProfile: Profile | null = null
 
@@ -323,13 +281,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (allowlistError) {
         await supabase.auth.signOut()
-        clearAuthStorage()
         throw new Error('Unable to verify admin access')
       }
 
       if (!allowlistData || currentProfile?.role !== 'admin') {
         await supabase.auth.signOut()
-        clearAuthStorage()
         throw new Error('You are not allowed to access the admin panel')
       }
 
@@ -338,7 +294,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (expectedRole && currentProfile?.role !== expectedRole) {
       await supabase.auth.signOut()
-      clearAuthStorage()
       throw new Error(`This account is not allowed to enter the ${expectedRole} portal`)
     }
 
@@ -371,6 +326,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
       options: {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
+        data: {
+          name,
+          role,
+        },
       },
     })
 
@@ -383,23 +342,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('Password does not meet security requirements')
       }
 
-      throw new Error('Unable to create account right now')
+      throw new Error(error.message || 'Unable to create account right now')
     }
 
     const userId = data.user?.id
-    if (!userId) return
 
-    const { data: existingProfile, error: existingProfileError } = await getProfilesTable()
-      .select('id')
-      .eq('user_id', userId)
-      .maybeSingle()
-
-    if (existingProfileError) {
-      throw new Error('Unable to create your profile')
-    }
-
-    if (existingProfile) {
-      return
+    if (!userId) {
+      throw new Error('Your account was created, but user data is missing')
     }
 
     const payload = {
@@ -424,16 +373,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       accessibility_high_contrast: false,
     }
 
-    const { error: profileError } = await getProfilesTable().insert(payload)
+    const { error: profileError } = await getProfilesTable().upsert(payload, {
+      onConflict: 'user_id',
+    })
 
     if (profileError) {
-      if (
-        profileError.message?.toLowerCase().includes('duplicate key') ||
-        profileError.message?.toLowerCase().includes('profiles_user_id_key')
-      ) {
-        return
-      }
-
       throw new Error('Your account was created, but we could not finish setting up your profile')
     }
   }
@@ -441,7 +385,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       await supabase.auth.signOut()
-      clearAuthStorage()
     } catch (error) {
       console.error('logout error:', error)
     } finally {
