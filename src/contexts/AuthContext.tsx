@@ -88,9 +88,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .maybeSingle()
 
     if (error) throw error
-    if (!data) throw new Error('Profile not found')
 
-    const normalized = normalizeProfile(data, currentUser)
+    if (data) {
+      const normalized = normalizeProfile(data, currentUser)
+      setProfile(normalized)
+      return normalized
+    }
+
+    const payload = {
+      user_id: currentUser.id,
+      name:
+        (currentUser.user_metadata?.name as string) ||
+        currentUser.email?.split('@')[0] ||
+        'User',
+      email: currentUser.email ?? '',
+      role: (currentUser.user_metadata?.role as UserRole) || 'student',
+      bio: '',
+      avatar_url: null,
+      major: null,
+      year: null,
+      phone: null,
+      location: null,
+      linkedin_url: null,
+      website_url: null,
+      language: 'en',
+      theme: 'light',
+      privacy_profile_public: true,
+      privacy_show_email: false,
+      accessibility_font_size: 'medium',
+      accessibility_reduce_motion: false,
+      accessibility_high_contrast: false,
+    }
+
+    const { data: newProfile, error: upsertError } = await getProfilesTable()
+      .upsert(payload, { onConflict: 'user_id' })
+      .select('*')
+      .single()
+
+    if (upsertError) throw upsertError
+
+    const normalized = normalizeProfile(newProfile, currentUser)
     setProfile(normalized)
     return normalized
   }
