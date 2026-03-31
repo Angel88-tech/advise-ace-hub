@@ -133,7 +133,7 @@ function Auth() {
         navigate(getDashboardPath(loggedInProfile?.role), { replace: true })
       } else {
         await register(email.trim(), password, name.trim(), signupRole)
-        alert('Account created.\nPlease verify your email before logging in.')
+        alert('Account created successfully. Please check your email to verify your account before logging in.')
         setIsLogin(true)
         setPassword('')
       }
@@ -177,7 +177,7 @@ function Auth() {
         type: 'signup',
         email: email.trim(),
         options: {
-          emailRedirectTo: `${window.location.origin}/auth`,
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       })
 
