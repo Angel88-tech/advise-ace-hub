@@ -87,7 +87,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('user_id', currentUser.id)
       .maybeSingle()
 
-    if (error) throw error
+    if (error) {
+      console.error('fetchProfile select error:', error)
+      throw error
+    }
 
     if (data) {
       const normalized = normalizeProfile(data, currentUser)
@@ -125,16 +128,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .select('*')
       .single()
 
-    if (upsertError) throw upsertError
+    if (upsertError) {
+      console.error('fetchProfile upsert error:', upsertError)
+      throw upsertError
+    }
 
     const normalized = normalizeProfile(newProfile, currentUser)
     setProfile(normalized)
     return normalized
   }
 
-  const loadProfileSafely = async (_currentUser: User) => {
-  setProfile(null)
-}
+  const loadProfileSafely = async (currentUser: User) => {
+    try {
+      await fetchProfile(currentUser)
+    } catch (error) {
+      console.error('Profile load error:', error)
+      setProfile(null)
+    }
+  }
 
   const refreshProfile = async () => {
     if (!user) return
@@ -200,38 +211,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!mounted) return
 
-        if (!currentSession) {
-          setSession(null)
-          setUser(null)
-          setProfile(null)
-          setIsLoading(false)
-          return
-        }
-
-        const { data: userData, error: userError } = await supabase.auth.getUser()
-
-        if (!mounted) return
-
-        if (userError || !userData.user) {
-          await supabase.auth.signOut()
-          setSession(null)
-          setUser(null)
-          setProfile(null)
-          setIsLoading(false)
-          return
-        }
-
         setSession(currentSession)
-        setUser(userData.user)
-        await loadProfileSafely(userData.user)
-        setIsLoading(false)
+        setUser(currentSession?.user ?? null)
+
+        if (currentSession?.user) {
+          await loadProfileSafely(currentSession.user)
+        } else {
+          setProfile(null)
+        }
       } catch (error) {
         console.error('Auth init error:', error)
         if (!mounted) return
         setSession(null)
         setUser(null)
         setProfile(null)
-        setIsLoading(false)
+      } finally {
+        if (mounted) {
+          setIsLoading(false)
+        }
       }
     }
 

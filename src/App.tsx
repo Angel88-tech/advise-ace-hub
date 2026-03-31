@@ -68,7 +68,7 @@ function ProtectedRoute({
   }
 
   if (!profile) {
-    return <FullPageLoader />
+    return <Navigate to="/auth" replace />
   }
 
   if (allowedRoles && !allowedRoles.includes(profile.role)) {
