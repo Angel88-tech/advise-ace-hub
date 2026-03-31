@@ -2,7 +2,7 @@
 
 ## Project info
 
-**URL**: advise-ace-hub-nu.vercel.app
+**URL**: [advise-ace-hub-nu.vercel.app](https://advise-ace-hub-nu.vercel.app/)
 
 
 ## How can I edit this code?
