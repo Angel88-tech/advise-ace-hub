@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { GraduationCap, UserCheck, User, Loader2, Shield, Eye, EyeOff } from 'lucide-react'
+import { toast } from 'sonner'
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,15}$/
@@ -50,6 +51,10 @@ function Auth() {
   const [isRecoveryMode, setIsRecoveryMode] = useState(false)
   const [recoveryPassword, setRecoveryPassword] = useState('')
   const [confirmRecoveryPassword, setConfirmRecoveryPassword] = useState('')
+
+  useEffect(() => {
+    document.title = 'CareerPath'
+  }, [])
 
   useEffect(() => {
     const clearAuthStorage = () => {
@@ -98,24 +103,24 @@ function Auth() {
   const handleSubmit = async () => {
     const emailError = validateEmail(email)
     if (emailError) {
-      alert(emailError)
+      toast.error(emailError)
       return
     }
 
     if (isLogin) {
       if (!password.trim()) {
-        alert('Please enter your password')
+        toast.error('Please enter your password')
         return
       }
     } else {
       if (!name.trim()) {
-        alert('Please enter your name')
+        toast.error('Please enter your name')
         return
       }
 
       const passwordError = validatePassword(password)
       if (passwordError) {
-        alert(passwordError)
+        toast.error(passwordError)
         return
       }
     }
@@ -125,15 +130,16 @@ function Auth() {
     try {
       if (isLogin) {
         const loggedInProfile = await login(email.trim(), password)
+        toast.success('Welcome back to CareerPath')
         navigate(getDashboardPath(loggedInProfile?.role), { replace: true })
       } else {
         await register(email.trim(), password, name.trim(), signupRole)
-        alert('Account created successfully. Please check your email to verify your account before logging in.')
+        toast.success('Account created successfully. Please check your email to verify your account before logging in.')
         setIsLogin(true)
         setPassword('')
       }
     } catch (err: any) {
-      alert(err.message || 'Something went wrong')
+      toast.error(err.message || 'Something went wrong')
     } finally {
       setIsSubmitting(false)
     }
@@ -142,7 +148,7 @@ function Auth() {
   const handleForgotPassword = async () => {
     const emailError = validateEmail(email)
     if (emailError) {
-      alert(emailError)
+      toast.error(emailError)
       return
     }
 
@@ -150,9 +156,9 @@ function Auth() {
 
     try {
       await resetPasswordForEmail(email.trim())
-      alert('Password reset link has been sent to your email.')
+      toast.success('Password reset link has been sent to your email.')
     } catch (err: any) {
-      alert(err.message || 'Something went wrong')
+      toast.error(err.message || 'Something went wrong')
     } finally {
       setIsSubmitting(false)
     }
@@ -161,7 +167,7 @@ function Auth() {
   const handleResendVerification = async () => {
     const emailError = validateEmail(email)
     if (emailError) {
-      alert(emailError)
+      toast.error(emailError)
       return
     }
 
@@ -178,9 +184,9 @@ function Auth() {
 
       if (error) throw error
 
-      alert('Verification email has been sent again.')
+      toast.success('Verification email has been sent again.')
     } catch (err: any) {
-      alert(err.message || 'Something went wrong')
+      toast.error(err.message || 'Something went wrong')
     } finally {
       setIsSubmitting(false)
     }
@@ -189,12 +195,12 @@ function Auth() {
   const handleRecoverySubmit = async () => {
     const passwordError = validatePassword(recoveryPassword)
     if (passwordError) {
-      alert(passwordError)
+      toast.error(passwordError)
       return
     }
 
     if (recoveryPassword !== confirmRecoveryPassword) {
-      alert('Passwords do not match')
+      toast.error('Passwords do not match')
       return
     }
 
@@ -211,7 +217,7 @@ function Auth() {
       })
       sessionStorage.clear()
 
-      alert('Password updated successfully. Please log in.')
+      toast.success('Password updated successfully. Please log in.')
       setIsRecoveryMode(false)
       setIsLogin(true)
       setRecoveryPassword('')
@@ -220,7 +226,7 @@ function Auth() {
       window.history.replaceState({}, document.title, '/auth')
       navigate('/auth', { replace: true })
     } catch (err: any) {
-      alert(err.message || 'Something went wrong')
+      toast.error(err.message || 'Something went wrong')
     } finally {
       setIsSubmitting(false)
     }
@@ -247,7 +253,7 @@ function Auth() {
         <Card className="border-border shadow-lg">
           <CardContent className="p-6 space-y-6">
             <div className="text-center space-y-2">
-              <h1 className="text-2xl font-bold">Career Recommendation System</h1>
+              <h1 className="text-2xl font-bold">CareerPath</h1>
               <p className="text-sm text-muted-foreground">
                 Guide your future with smart recommendations
               </p>

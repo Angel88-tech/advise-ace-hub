@@ -324,13 +324,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (allowlistError) {
         await supabase.auth.signOut()
         clearAuthStorage()
-        throw new Error(allowlistError.message)
+        throw new Error('Unable to verify admin access')
       }
 
       if (!allowlistData || currentProfile?.role !== 'admin') {
         await supabase.auth.signOut()
         clearAuthStorage()
-        throw new Error('You are not allowed to access admin panel')
+        throw new Error('You are not allowed to access the admin panel')
       }
 
       return currentProfile
@@ -358,7 +358,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .maybeSingle()
 
       if (allowlistError) {
-        throw new Error(allowlistError.message)
+        throw new Error('Unable to verify admin access')
       }
 
       if (!allowlistData) {
@@ -383,11 +383,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('Password does not meet security requirements')
       }
 
-      throw new Error(error.message)
+      throw new Error('Unable to create account right now')
     }
 
     const userId = data.user?.id
     if (!userId) return
+
+    const { data: existingProfile, error: existingProfileError } = await getProfilesTable()
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    if (existingProfileError) {
+      throw new Error('Unable to create your profile')
+    }
+
+    if (existingProfile) {
+      return
+    }
 
     const payload = {
       user_id: userId,
@@ -413,7 +426,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { error: profileError } = await getProfilesTable().insert(payload)
 
-    if (profileError) throw new Error(profileError.message)
+    if (profileError) {
+      if (
+        profileError.message?.toLowerCase().includes('duplicate key') ||
+        profileError.message?.toLowerCase().includes('profiles_user_id_key')
+      ) {
+        return
+      }
+
+      throw new Error('Your account was created, but we could not finish setting up your profile')
+    }
   }
 
   const logout = async () => {
