@@ -64,7 +64,6 @@ function Auth() {
     const hash = window.location.hash.toLowerCase()
     const search = window.location.search.toLowerCase()
     const isRecoveryLink = hash.includes('type=recovery') || search.includes('type=recovery')
-    const isSignupLink = hash.includes('type=signup') || search.includes('type=signup')
 
     if (!isRecoveryLink) {
       clearAuthStorage()
@@ -73,10 +72,6 @@ function Auth() {
     if (isRecoveryLink) {
       setIsRecoveryMode(true)
       setIsLogin(false)
-    }
-
-    if (isSignupLink) {
-      setIsLogin(true)
     }
   }, [])
 

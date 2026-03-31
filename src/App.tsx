@@ -1,15 +1,14 @@
+import React from 'react'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
-import AuthCallback from './pages/AuthCallback'
-
-<Route path="/auth/callback" element={<AuthCallback />} />
 
 import Landing from './pages/Landing'
 import Auth from './pages/Auth'
+import AuthCallback from './pages/AuthCallback'
 import NotFound from './pages/NotFound'
 import Chat from './pages/Chat'
 import Account from './pages/Account'
@@ -102,6 +101,8 @@ function AppRoutes() {
           </PublicRoute>
         }
       />
+
+      <Route path="/auth/callback" element={<AuthCallback />} />
 
       <Route
         path="/profile"

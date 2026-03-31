@@ -2,22 +2,36 @@ import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/integrations/supabase/client'
 
-export default function AuthCallback() {
+function AuthCallback() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    const handleAuth = async () => {
-      const { error } = await supabase.auth.getSession()
+    const handleAuthCallback = async () => {
+      try {
+        const url = new URL(window.location.href)
+        const code = url.searchParams.get('code')
 
-      if (error) {
-        console.error(error)
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code)
+
+          if (error) {
+            console.error('exchangeCodeForSession error:', error)
+            navigate('/auth', { replace: true })
+            return
+          }
+        }
+
+        navigate('/auth', { replace: true })
+      } catch (error) {
+        console.error('Auth callback error:', error)
+        navigate('/auth', { replace: true })
       }
-
-      navigate('/')
     }
 
-    handleAuth()
+    handleAuthCallback()
   }, [navigate])
 
-  return <div>Loading...</div>
+  return <div className="min-h-screen flex items-center justify-center">Loading...</div>
 }
+
+export default AuthCallback
