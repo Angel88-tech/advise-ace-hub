@@ -67,16 +67,17 @@ function ProtectedRoute({
     return <Navigate to="/auth" replace />
   }
 
-  if (isAuthenticated && !profile) {
+  if (!profile) {
     return <FullPageLoader />
   }
 
-  if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
+  if (allowedRoles && !allowedRoles.includes(profile.role)) {
     return <Navigate to={getDashboardPath(profile.role)} replace />
   }
 
   return <>{children}</>
 }
+
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, profile, isLoading } = useAuth()
 
@@ -84,8 +85,8 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
     return <FullPageLoader />
   }
 
-  if (isAuthenticated) {
-    return <Navigate to={getDashboardPath(profile?.role)} replace />
+  if (isAuthenticated && profile) {
+    return <Navigate to={getDashboardPath(profile.role)} replace />
   }
 
   return <>{children}</>

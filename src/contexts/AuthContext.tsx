@@ -132,14 +132,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return normalized
   }
 
-  const loadProfileSafely = async (currentUser: User) => {
-    try {
-      await fetchProfile(currentUser)
-    } catch (error) {
-      console.error('Profile load error:', error)
-      setProfile(null)
-    }
-  }
+  const loadProfileSafely = async (_currentUser: User) => {
+  setProfile(null)
+}
 
   const refreshProfile = async () => {
     if (!user) return
