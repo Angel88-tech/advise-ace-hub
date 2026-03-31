@@ -21,14 +21,14 @@ function AuthCallback() {
           }
         }
 
-        const { data } = await supabase.auth.getSession()
+        const { data, error } = await supabase.auth.getSession()
 
-        if (data.session?.user) {
-          navigate('/profile', { replace: true })
+        if (error || !data.session?.user) {
+          navigate('/auth', { replace: true })
           return
         }
 
-        navigate('/auth', { replace: true })
+        navigate('/profile', { replace: true })
       } catch (error) {
         console.error('Auth callback error:', error)
         navigate('/auth', { replace: true })

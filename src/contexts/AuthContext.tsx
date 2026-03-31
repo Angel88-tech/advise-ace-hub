@@ -228,9 +228,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setSession(currentSession)
         setUser(userData.user)
+        await loadProfileSafely(userData.user)
         setIsLoading(false)
-
-        void loadProfileSafely(userData.user)
       } catch (error) {
         console.error('Auth init error:', error)
         if (!mounted) return
@@ -243,31 +242,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     void init()
 
-    const timeout = window.setTimeout(() => {
-      if (mounted) {
-        setIsLoading(false)
-      }
-    }, 3000)
-
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
       if (!mounted) return
 
       setSession(nextSession)
       setUser(nextSession?.user ?? null)
-      setIsLoading(false)
 
       if (nextSession?.user) {
-        void loadProfileSafely(nextSession.user)
+        await loadProfileSafely(nextSession.user)
       } else {
         setProfile(null)
+      }
+
+      if (mounted) {
+        setIsLoading(false)
       }
     })
 
     return () => {
       mounted = false
-      window.clearTimeout(timeout)
       subscription.unsubscribe()
     }
   }, [])
@@ -301,14 +296,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('Please verify your email before logging in')
     }
 
-    let currentProfile: Profile | null = null
-
-    try {
-      currentProfile = await fetchProfile(currentUser)
-    } catch (profileError) {
-      console.error('Login fetchProfile error:', profileError)
-      throw new Error('Unable to load user profile')
-    }
+    const currentProfile = await fetchProfile(currentUser)
 
     if (expectedRole === 'admin') {
       const { data: allowlistData, error: allowlistError } = await getAdminAllowlistTable()
