@@ -1,247 +1,451 @@
-import React from 'react'
-import { Toaster } from '@/components/ui/toaster'
-import { Toaster as Sonner } from '@/components/ui/sonner'
-import { TooltipProvider } from '@/components/ui/tooltip'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider, useAuth } from '@/contexts/AuthContext'
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { Session, User } from '@supabase/supabase-js'
+import { supabase } from '@/integrations/supabase/client'
 
-import Landing from './pages/Landing'
-import Auth from './pages/Auth'
-import AuthCallback from './pages/AuthCallback'
-import NotFound from './pages/NotFound'
-import Chat from './pages/Chat'
-import Account from './pages/Account'
-import Settings from './pages/Settings'
+export type UserRole = 'student' | 'advisor' | 'mentor' | 'admin'
 
-import StudentDashboard from './pages/student/StudentDashboard'
-import Recommendations from './pages/student/Recommendations'
-import Mentors from './pages/student/Mentors'
-import SkillGapAnalysis from './pages/student/SkillGapAnalysis'
-
-import AdvisorDashboard from './pages/advisor/AdvisorDashboard'
-import MentorDashboard from './pages/mentor/MentorDashboard'
-
-import AdminDashboard from './pages/admin/AdminDashboard'
-import AdminUsersPage from './pages/admin/AdminUsersPage'
-
-const queryClient = new QueryClient()
-
-function getDashboardPath(role?: string) {
-  switch (role) {
-    case 'student':
-      return '/student/dashboard'
-    case 'advisor':
-      return '/advisor/dashboard'
-    case 'mentor':
-      return '/mentor/dashboard'
-    case 'admin':
-      return '/admin/dashboard'
-    default:
-      return '/profile'
-  }
+export interface Profile {
+  id: string
+  user_id: string
+  name: string
+  email?: string
+  role: UserRole
+  avatar_url: string | null
+  bio: string
+  major: string | null
+  year: number | null
+  phone: string | null
+  location: string | null
+  linkedin_url: string | null
+  website_url: string | null
+  language: string
+  theme: string
+  privacy_profile_public: boolean
+  privacy_show_email: boolean
+  accessibility_font_size: string
+  accessibility_reduce_motion: boolean
+  accessibility_high_contrast: boolean
+  created_at: string
+  updated_at: string
 }
 
-function FullPageLoader() {
+interface AuthContextType {
+  user: User | null
+  session: Session | null
+  profile: Profile | null
+  isLoading: boolean
+  isAuthenticated: boolean
+  login: (email: string, password: string, expectedRole?: UserRole) => Promise<Profile | null>
+  register: (email: string, password: string, name: string, role: UserRole) => Promise<void>
+  logout: () => Promise<void>
+  refreshProfile: () => Promise<Profile | undefined>
+  updateProfile: (updates: Partial<Profile>) => Promise<void>
+  updateEmail: (newEmail: string) => Promise<void>
+  updatePassword: (newPassword: string) => Promise<void>
+  resetPasswordForEmail: (email: string) => Promise<void>
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null)
+  const [session, setSession] = useState<Session | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  const getProfilesTable = () => (supabase as any).from('profiles')
+  const getAdminAllowlistTable = () => (supabase as any).from('admin_allowlist')
+
+  const normalizeProfile = (data: any, currentUser?: User): Profile => ({
+    id: data?.id ?? '',
+    user_id: data?.user_id ?? currentUser?.id ?? '',
+    name: data?.name ?? '',
+    email: data?.email ?? currentUser?.email ?? '',
+    role: (data?.role ?? 'student') as UserRole,
+    avatar_url: data?.avatar_url ?? null,
+    bio: data?.bio ?? '',
+    major: data?.major ?? null,
+    year: data?.year ?? null,
+    phone: data?.phone ?? null,
+    location: data?.location ?? null,
+    linkedin_url: data?.linkedin_url ?? null,
+    website_url: data?.website_url ?? null,
+    language: data?.language ?? 'en',
+    theme: data?.theme ?? 'light',
+    privacy_profile_public: data?.privacy_profile_public ?? true,
+    privacy_show_email: data?.privacy_show_email ?? false,
+    accessibility_font_size: data?.accessibility_font_size ?? 'medium',
+    accessibility_reduce_motion: data?.accessibility_reduce_motion ?? false,
+    accessibility_high_contrast: data?.accessibility_high_contrast ?? false,
+    created_at: data?.created_at ?? '',
+    updated_at: data?.updated_at ?? '',
+  })
+
+  const fetchProfile = async (currentUser: User) => {
+    const { data, error } = await getProfilesTable()
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .maybeSingle()
+
+    if (error) {
+      console.error('fetchProfile select error:', error)
+      throw error
+    }
+
+    if (data) {
+      const normalized = normalizeProfile(data, currentUser)
+      setProfile(normalized)
+      return normalized
+    }
+
+    const payload = {
+      user_id: currentUser.id,
+      name:
+        (currentUser.user_metadata?.name as string) ||
+        currentUser.email?.split('@')[0] ||
+        'User',
+      email: currentUser.email ?? '',
+      role: (currentUser.user_metadata?.role as UserRole) || 'student',
+      bio: '',
+      avatar_url: null,
+      major: null,
+      year: null,
+      phone: null,
+      location: null,
+      linkedin_url: null,
+      website_url: null,
+      language: 'en',
+      theme: 'light',
+      privacy_profile_public: true,
+      privacy_show_email: false,
+      accessibility_font_size: 'medium',
+      accessibility_reduce_motion: false,
+      accessibility_high_contrast: false,
+    }
+
+    const { data: newProfile, error: upsertError } = await getProfilesTable()
+      .upsert(payload, { onConflict: 'user_id' })
+      .select('*')
+      .single()
+
+    if (upsertError) {
+      console.error('fetchProfile upsert error:', upsertError)
+      throw upsertError
+    }
+
+    const normalized = normalizeProfile(newProfile, currentUser)
+    setProfile(normalized)
+    return normalized
+  }
+
+  const loadProfileSafely = async (currentUser: User) => {
+    try {
+      await fetchProfile(currentUser)
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        console.warn('Profile request aborted')
+        return
+      }
+
+      console.error('Profile load error:', error)
+      setProfile(null)
+    }
+  }
+
+  const refreshProfile = async () => {
+    if (!user) return
+
+    try {
+      return await fetchProfile(user)
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        console.warn('refreshProfile aborted')
+        return
+      }
+
+      console.error('refreshProfile error:', error)
+      setProfile(null)
+      return
+    }
+  }
+
+  const updateProfile = async (updates: Partial<Profile>) => {
+    if (!user) return
+
+    const { data, error } = await getProfilesTable()
+      .update(updates)
+      .eq('user_id', user.id)
+      .select('*')
+      .single()
+
+    if (error) throw error
+
+    setProfile(normalizeProfile(data, user))
+  }
+
+  const updateEmail = async (newEmail: string) => {
+    const { error } = await supabase.auth.updateUser({
+      email: newEmail,
+    })
+
+    if (error) throw error
+
+    if (user) {
+      await getProfilesTable().update({ email: newEmail }).eq('user_id', user.id)
+      await refreshProfile()
+    }
+  }
+
+  const updatePassword = async (newPassword: string) => {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    })
+
+    if (error) throw error
+  }
+
+  const resetPasswordForEmail = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback`,
+    })
+
+    if (error) throw error
+  }
+
+  useEffect(() => {
+    let mounted = true
+
+    const init = async () => {
+      try {
+        const { data } = await supabase.auth.getSession()
+        const currentSession = data.session
+
+        if (!mounted) return
+
+        setSession(currentSession)
+        setUser(currentSession?.user ?? null)
+
+        if (currentSession?.user) {
+          loadProfileSafely(currentSession.user).catch(() => {})
+        } else {
+          setProfile(null)
+        }
+      } catch (error) {
+        console.warn('Auth init warning:', error)
+        if (!mounted) return
+        setSession(null)
+        setUser(null)
+        setProfile(null)
+      } finally {
+        if (mounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void init()
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!mounted) return
+
+      setSession(nextSession)
+      setUser(nextSession?.user ?? null)
+
+      if (nextSession?.user) {
+        loadProfileSafely(nextSession.user).catch(() => {})
+      } else {
+        setProfile(null)
+      }
+
+      setIsLoading(false)
+    })
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  const login = async (email: string, password: string, expectedRole?: UserRole) => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (error) {
+      if (error.message.includes('Invalid login credentials')) {
+        throw new Error('Incorrect email or password')
+      }
+
+      if (error.message.toLowerCase().includes('email not confirmed')) {
+        throw new Error('Please verify your email before logging in')
+      }
+
+      throw new Error(error.message)
+    }
+
+    const currentUser = data.user
+
+    if (!currentUser) {
+      throw new Error('Unable to complete login')
+    }
+
+    if (!currentUser.email_confirmed_at) {
+      await supabase.auth.signOut()
+      throw new Error('Please verify your email before logging in')
+    }
+
+    const currentProfile = await fetchProfile(currentUser)
+
+    if (expectedRole === 'admin') {
+      const { data: allowlistData, error: allowlistError } = await getAdminAllowlistTable()
+        .select('email')
+        .eq('email', email.trim())
+        .maybeSingle()
+
+      if (allowlistError) {
+        await supabase.auth.signOut()
+        throw new Error('Unable to verify admin access')
+      }
+
+      if (!allowlistData || currentProfile?.role !== 'admin') {
+        await supabase.auth.signOut()
+        throw new Error('You are not allowed to access the admin panel')
+      }
+
+      return currentProfile
+    }
+
+    if (expectedRole && currentProfile?.role !== expectedRole) {
+      await supabase.auth.signOut()
+      throw new Error(`This account is not allowed to enter the ${expectedRole} portal`)
+    }
+
+    return currentProfile
+  }
+
+  const register = async (
+    email: string,
+    password: string,
+    name: string,
+    role: UserRole
+  ) => {
+    if (role === 'admin') {
+      const { data: allowlistData, error: allowlistError } = await getAdminAllowlistTable()
+        .select('email')
+        .eq('email', email.trim())
+        .maybeSingle()
+
+      if (allowlistError) {
+        throw new Error('Unable to verify admin access')
+      }
+
+      if (!allowlistData) {
+        throw new Error('This email is not allowed to create an admin account')
+      }
+    }
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        data: {
+          name,
+          role,
+        },
+      },
+    })
+
+    if (error) {
+      if (error.message.includes('User already registered')) {
+        throw new Error('This email is already registered')
+      }
+
+      if (error.message.toLowerCase().includes('password')) {
+        throw new Error('Password does not meet security requirements')
+      }
+
+      throw new Error(error.message || 'Unable to create account right now')
+    }
+
+    const userId = data.user?.id
+
+    if (!userId) {
+      throw new Error('Your account was created, but user data is missing')
+    }
+
+    const payload = {
+      user_id: userId,
+      name,
+      email,
+      role,
+      bio: '',
+      avatar_url: null,
+      major: null,
+      year: null,
+      phone: null,
+      location: null,
+      linkedin_url: null,
+      website_url: null,
+      language: 'en',
+      theme: 'light',
+      privacy_profile_public: true,
+      privacy_show_email: false,
+      accessibility_font_size: 'medium',
+      accessibility_reduce_motion: false,
+      accessibility_high_contrast: false,
+    }
+
+    const { error: profileError } = await getProfilesTable().upsert(payload, {
+      onConflict: 'user_id',
+    })
+
+    if (profileError) {
+      throw new Error('Your account was created, but we could not finish setting up your profile')
+    }
+  }
+
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut()
+    } catch (error) {
+      console.error('logout error:', error)
+    } finally {
+      setUser(null)
+      setSession(null)
+      setProfile(null)
+      window.location.href = '/auth'
+    }
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-lg font-medium text-slate-600">Loading...</div>
-    </div>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        profile,
+        isLoading,
+        isAuthenticated: !!session,
+        login,
+        register,
+        logout,
+        refreshProfile,
+        updateProfile,
+        updateEmail,
+        updatePassword,
+        resetPasswordForEmail,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
   )
 }
 
-function ProtectedRoute({
-  children,
-  allowedRoles,
-}: {
-  children: React.ReactNode
-  allowedRoles?: string[]
-}) {
-  const { isAuthenticated, profile, isLoading } = useAuth()
-
-  if (isLoading) {
-    return <FullPageLoader />
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/auth" replace />
-  }
-
-  if (!profile) {
-    return <Navigate to="/auth" replace />
-  }
-
-  if (allowedRoles && !allowedRoles.includes(profile.role)) {
-    return <Navigate to={getDashboardPath(profile.role)} replace />
-  }
-
-  return <>{children}</>
-}
-
-function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, profile, isLoading } = useAuth()
-
-  if (isLoading) {
-    return <FullPageLoader />
-  }
-
-  if (isAuthenticated && profile) {
-    return <Navigate to={getDashboardPath(profile.role)} replace />
-  }
-
-  return <>{children}</>
-}
-
-function AppRoutes() {
-  return (
-    <Routes>
-      <Route path="/" element={<Landing />} />
-
-      <Route
-        path="/auth"
-        element={
-          <PublicRoute>
-            <Auth />
-          </PublicRoute>
-        }
-      />
-
-      <Route path="/auth/callback" element={<AuthCallback />} />
-
-      <Route
-        path="/profile"
-        element={
-          <ProtectedRoute>
-            <Account />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/settings"
-        element={
-          <ProtectedRoute>
-            <Settings />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/chat"
-        element={
-          <ProtectedRoute>
-            <Chat />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/student/dashboard"
-        element={
-          <ProtectedRoute allowedRoles={['student']}>
-            <StudentDashboard />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/student/recommendations"
-        element={
-          <ProtectedRoute allowedRoles={['student']}>
-            <Recommendations />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/student/mentors"
-        element={
-          <ProtectedRoute allowedRoles={['student']}>
-            <Mentors />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/student/skill-gap"
-        element={
-          <ProtectedRoute allowedRoles={['student']}>
-            <SkillGapAnalysis />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/advisor/dashboard"
-        element={
-          <ProtectedRoute allowedRoles={['advisor']}>
-            <AdvisorDashboard />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/mentor/dashboard"
-        element={
-          <ProtectedRoute allowedRoles={['mentor']}>
-            <MentorDashboard />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/admin/dashboard"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminDashboard />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/admin/students"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminUsersPage type="student" />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/admin/advisors"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminUsersPage type="advisor" />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/admin/mentors"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminUsersPage type="mentor" />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route path="*" element={<NotFound />} />
-    </Routes>
-  )
-}
-
-export default function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </TooltipProvider>
-      </AuthProvider>
-    </QueryClientProvider>
-  )
+export function useAuth() {
+  const context = useContext(AuthContext)
+  if (!context) throw new Error('useAuth must be used within AuthProvider')
+  return context
 }
