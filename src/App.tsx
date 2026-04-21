@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { Toaster } from 'sonner'
 import Auth from './pages/Auth'
 import { AuthProvider } from './contexts/AuthContext'
+import { Toaster } from 'sonner'
 
 export default function App() {
   return (
