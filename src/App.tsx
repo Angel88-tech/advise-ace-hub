@@ -1,10 +1,43 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'sonner'
-import Auth from './pages/Auth'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+
+import Landing from './pages/Landing'
+import Auth from './pages/Auth'
+import AuthCallback from './pages/AuthCallback'
+import NotFound from './pages/NotFound'
+import Chat from './pages/Chat'
+import Account from './pages/Account'
+import Settings from './pages/Settings'
+
 import StudentDashboard from './pages/student/StudentDashboard'
+import Recommendations from './pages/student/Recommendations'
+import Mentors from './pages/student/Mentors'
+import SkillGapAnalysis from './pages/student/SkillGapAnalysis'
+
 import AdvisorDashboard from './pages/advisor/AdvisorDashboard'
 import MentorDashboard from './pages/mentor/MentorDashboard'
+
+function getDashboardPath(role?: string) {
+  switch (role) {
+    case 'student':
+      return '/student/dashboard'
+    case 'advisor':
+      return '/advisor/dashboard'
+    case 'mentor':
+      return '/mentor/dashboard'
+    default:
+      return '/profile'
+  }
+}
+
+function FullPageLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="text-lg font-medium text-slate-600">Loading...</div>
+    </div>
+  )
+}
 
 function ProtectedRoute({
   children,
@@ -16,10 +49,14 @@ function ProtectedRoute({
   const { isAuthenticated, profile, isLoading } = useAuth()
 
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>
+    return <FullPageLoader />
   }
 
-  if (!isAuthenticated || !profile) {
+  if (!isAuthenticated) {
+    return <Navigate to="/auth" replace />
+  }
+
+  if (!profile) {
     return <Navigate to="/auth" replace />
   }
 
@@ -28,7 +65,21 @@ function ProtectedRoute({
   }
 
   if (allowedRoles && !allowedRoles.includes(profile.role)) {
-    return <Navigate to="/auth" replace />
+    return <Navigate to={getDashboardPath(profile.role)} replace />
+  }
+
+  return <>{children}</>
+}
+
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, profile, isLoading } = useAuth()
+
+  if (isLoading) {
+    return <FullPageLoader />
+  }
+
+  if (isAuthenticated && profile && profile.role !== 'admin') {
+    return <Navigate to={getDashboardPath(profile.role)} replace />
   }
 
   return <>{children}</>
@@ -40,14 +91,78 @@ export default function App() {
       <BrowserRouter>
         <Toaster richColors position="top-center" />
         <Routes>
-          <Route path="/" element={<Auth />} />
-          <Route path="/auth" element={<Auth />} />
+          <Route path="/" element={<Landing />} />
+
+          <Route
+            path="/auth"
+            element={
+              <PublicRoute>
+                <Auth />
+              </PublicRoute>
+            }
+          />
+
+          <Route path="/auth/callback" element={<AuthCallback />} />
+
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Account />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <Settings />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/chat"
+            element={
+              <ProtectedRoute>
+                <Chat />
+              </ProtectedRoute>
+            }
+          />
 
           <Route
             path="/student/dashboard"
             element={
               <ProtectedRoute allowedRoles={['student']}>
                 <StudentDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/student/recommendations"
+            element={
+              <ProtectedRoute allowedRoles={['student']}>
+                <Recommendations />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/student/mentors"
+            element={
+              <ProtectedRoute allowedRoles={['student']}>
+                <Mentors />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/student/skill-gap"
+            element={
+              <ProtectedRoute allowedRoles={['student']}>
+                <SkillGapAnalysis />
               </ProtectedRoute>
             }
           />
@@ -69,6 +184,8 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
