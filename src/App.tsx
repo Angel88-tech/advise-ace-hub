@@ -18,6 +18,8 @@ import SkillGapAnalysis from './pages/student/SkillGapAnalysis'
 import AdvisorDashboard from './pages/advisor/AdvisorDashboard'
 import MentorDashboard from './pages/mentor/MentorDashboard'
 
+import ThemeToggle from './components/ThemeToggle'
+
 function getDashboardPath(role?: string) {
   switch (role) {
     case 'student':
@@ -48,21 +50,10 @@ function ProtectedRoute({
 }) {
   const { isAuthenticated, profile, isLoading } = useAuth()
 
-  if (isLoading) {
-    return <FullPageLoader />
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/auth" replace />
-  }
-
-  if (!profile) {
-    return <Navigate to="/auth" replace />
-  }
-
-  if (profile.role === 'admin') {
-    return <Navigate to="/auth" replace />
-  }
+  if (isLoading) return <FullPageLoader />
+  if (!isAuthenticated) return <Navigate to="/auth" replace />
+  if (!profile) return <Navigate to="/auth" replace />
+  if (profile.role === 'admin') return <Navigate to="/auth" replace />
 
   if (allowedRoles && !allowedRoles.includes(profile.role)) {
     return <Navigate to={getDashboardPath(profile.role)} replace />
@@ -74,9 +65,7 @@ function ProtectedRoute({
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, profile, isLoading } = useAuth()
 
-  if (isLoading) {
-    return <FullPageLoader />
-  }
+  if (isLoading) return <FullPageLoader />
 
   if (isAuthenticated && profile && profile.role !== 'admin') {
     return <Navigate to={getDashboardPath(profile.role)} replace />
@@ -89,7 +78,10 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <ThemeToggle />
+
         <Toaster richColors position="top-center" />
+
         <Routes>
           <Route path="/" element={<Landing />} />
 
