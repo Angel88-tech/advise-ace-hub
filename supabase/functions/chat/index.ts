@@ -1,167 +1,145 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+// Career Recommendation Chatbot - powered by Lovable AI
+import knowledgeBase from "./knowledge_base.json" with { type: "json" };
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SYSTEM_PROMPT = `You are an expert career guidance AI assistant for higher education students. Provide clear, practical, and personalized career advice. Use markdown formatting.`;
+// Project context summary (from project2_document.pdf)
+const PROJECT_CONTEXT = `
+هذا الموقع هو "Career Recommendation System" - نظام توصية مهنية لطلاب جامعة الملك خالد (King Khalid University - College of Computer Science).
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+الفريق: Hana Mohammad Kamal، Renad Abdullah Alqahtani، Sarah Mohammed Mofareh، Maryam Mohammed Bakhsh — تحت إشراف Ms. Asfia Sabahath.
+
+الهدف: مساعدة الطلاب على اكتشاف المسارات المهنية المناسبة لهم بناءً على مهاراتهم واهتماماتهم.
+
+كيف يعمل الموقع:
+1. الطالب يسجل حساب ويدخل بياناته (التخصص، المعدل، الجامعة).
+2. الطالب يحدد مستوى مهاراته (من 0 إلى 5).
+3. النظام يستخدم خوارزمية Cosine Similarity لمقارنة مهارات الطالب مع متطلبات الوظائف من قاعدة بيانات O*NET.
+4. النظام يعرض أفضل المهن المناسبة + يحلل الفجوة في المهارات (Skill Gap) + يقترح موارد تعليمية ومنح ومرشدين.
+
+التقنيات المستخدمة: React + Vite (Frontend)، Supabase / PostgreSQL (Backend)، خوارزمية Cosine Similarity للمطابقة.
+
+مصدر بيانات المهن: O*NET Taxonomy (قاعدة بيانات أمريكية معيارية لتصنيف المهن والمهارات).
+
+Job Zones (مستويات التحضير المطلوبة):
+- Zone 1: تحضير قليل جداً
+- Zone 2: تحضير قليل
+- Zone 3: تحضير متوسط
+- Zone 4: تحضير عالٍ (عادة بكالوريوس)
+- Zone 5: تحضير عالٍ جداً (دراسات عليا)
+`;
+
+function detectArabic(text: string): boolean {
+  return /[\u0600-\u06FF]/.test(text);
+}
+
+function searchOccupations(query: string, limit = 8): typeof knowledgeBase {
+  const q = query.toLowerCase();
+  const tokens = q.split(/\s+/).filter((t) => t.length > 2);
+  if (tokens.length === 0) return [];
+  const scored = (knowledgeBase as any[]).map((occ) => {
+    const hay = `${occ.t} ${occ.d} ${(occ.s || []).join(" ")}`.toLowerCase();
+    let score = 0;
+    for (const tok of tokens) if (hay.includes(tok)) score += hay.includes(tok) ? 1 : 0;
+    if (occ.t.toLowerCase().includes(q)) score += 5;
+    return { occ, score };
+  });
+  return scored.filter((x) => x.score > 0).sort((a, b) => b.score - a.score).slice(0, limit).map((x) => x.occ);
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const { messages } = await req.json();
-
-    if (!messages || !Array.isArray(messages)) {
-      return new Response(JSON.stringify({ error: "Invalid messages" }), {
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return new Response(JSON.stringify({ error: "messages array required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
     if (!LOVABLE_API_KEY) {
-      throw new Error("Missing LOVABLE_API_KEY");
+      return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error("Missing Supabase environment variables");
-    }
+    const lastUser = [...messages].reverse().find((m: any) => m.role === "user")?.content ?? "";
+    const isArabic = detectArabic(lastUser);
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    // Search occupations relevant to user query
+    const matches = searchOccupations(lastUser, 8);
+    const occupationContext =
+      matches.length > 0
+        ? `\n\nالمهن ذات الصلة بسؤال المستخدم (من قاعدة بيانات O*NET):\n${matches
+            .map(
+              (o: any) =>
+                `- ${o.t} (Job Zone ${o.z ?? "?"}): ${o.d} | أهم المهارات: ${(o.s || []).join(", ")}`,
+            )
+            .join("\n")}`
+        : "";
 
-    // Get last user message
-    const lastUserMsg = [...messages]
-      .reverse()
-      .find((m: any) => m.role === "user");
+    const systemPrompt = `أنت مساعد ذكي للموقع التالي. مهمتك مساعدة الطلاب.
 
-    let careerContext = "";
+${PROJECT_CONTEXT}
+${occupationContext}
 
-    if (lastUserMsg?.content) {
-      const userText = lastUserMsg.content.toLowerCase();
+قواعد مهمة:
+1. اللغة: ${isArabic ? "أجب بالعربية الفصحى المبسطة." : "Respond in English."}
+2. كن ودوداً ومختصراً ومباشراً.
+3. عند سؤال عن مهنة معينة، استخدم بيانات O*NET أعلاه.
+4. إذا سألك الطالب "كيف استخدم الموقع؟" اشرح الخطوات الأربع المذكورة أعلاه.
+5. لا تخترع معلومات. إذا لم تكن متأكداً، قل ذلك بصدق.
+6. لا تجب على أسئلة خارج نطاق المهن والموقع والتوجيه المهني.`;
 
-      const keywords = userText
-        .replace(/[^a-z\s]/g, "")
-        .split(/\s+/)
-        .filter((w: string) => w.length > 3);
-
-      if (keywords.length > 0) {
-        const { data: occupations } = await supabase.rpc(
-          "search_occupations_by_skills",
-          {
-            skill_keywords: keywords.slice(0, 8),
-            max_results: 5,
-          }
-        );
-
-        if (occupations && occupations.length > 0) {
-          const details = await Promise.all(
-            occupations.slice(0, 3).map(async (occ: any) => {
-              const { data } = await supabase.rpc("get_occupation_details", {
-                p_onet_code: occ.onet_soc_code,
-              });
-              return data;
-            })
-          );
-
-          careerContext += "\n\n--- CAREER DATA ---\n";
-
-          for (const d of details) {
-            if (!d?.occupation) continue;
-
-            careerContext += `\n${d.occupation.title}\n`;
-            careerContext += `${d.occupation.description || ""}\n`;
-
-            if (d.top_skills?.length) {
-              careerContext += `Skills: ${d.top_skills
-                .slice(0, 5)
-                .map((s: any) => s.name)
-                .join(", ")}\n`;
-            }
-
-            if (d.education?.length) {
-              careerContext += `Education data available\n`;
-            }
-          }
-
-          careerContext += "--- END CAREER DATA ---\n";
-        }
-      }
-    }
-
-    const augmentedMessages = [...messages];
-
-    if (careerContext && augmentedMessages.length > 0) {
-      const lastIndex = augmentedMessages.length - 1;
-      augmentedMessages[lastIndex] = {
-        ...augmentedMessages[lastIndex],
-        content:
-          augmentedMessages[lastIndex].content + careerContext,
-      };
-    }
-
-    const response = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            ...augmentedMessages,
-          ],
-          stream: true,
-        }),
-      }
-    );
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [{ role: "system", content: systemPrompt }, ...messages],
+        stream: true,
+      }),
+    });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      return new Response(
-        JSON.stringify({
-          error: "AI request failed",
-          details: errorText,
-        }),
-        {
-          status: response.status,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    if (!response.body) {
-      throw new Error("Empty response from AI");
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ error: "تجاوزت الحد المسموح، حاول لاحقاً." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: "نفدت رصيد الذكاء الاصطناعي. يرجى إضافة رصيد." }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      const t = await response.text();
+      console.error("AI gateway error:", response.status, t);
+      return new Response(JSON.stringify({ error: "AI gateway error" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     return new Response(response.body, {
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      },
+      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
-  } catch (error) {
+  } catch (e) {
+    console.error("career-chat error:", e);
     return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
