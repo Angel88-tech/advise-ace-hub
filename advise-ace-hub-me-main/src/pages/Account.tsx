@@ -9,14 +9,40 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { toast } from 'sonner'
-import { Camera, Loader2, Save, User, MapPin, Phone, Briefcase, Globe, Linkedin, LogOut } from 'lucide-react'
+import {
+  Camera,
+  Loader2,
+  Save,
+  User,
+  MapPin,
+  Phone,
+  Briefcase,
+  Globe,
+  Linkedin,
+  LogOut,
+  Lock,
+  Eye,
+  EyeOff,
+} from 'lucide-react'
+
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,15}$/
 
 export default function Account() {
   const { user, profile, refreshProfile, logout, updateProfile } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
+
   const [isUploading, setIsUploading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
+
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPasswords, setShowPasswords] = useState(false)
+
+  const passwordsMatch = confirmPassword.length > 0 && newPassword === confirmPassword
+  const passwordsDoNotMatch = confirmPassword.length > 0 && newPassword !== confirmPassword
 
   const [formData, setFormData] = useState({
     name: '',
@@ -83,9 +109,7 @@ export default function Account() {
       toast.error(error.message || 'Failed to upload avatar')
     } finally {
       setIsUploading(false)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
@@ -112,6 +136,62 @@ export default function Account() {
     }
   }
 
+  const handleChangePassword = async () => {
+    if (!user?.email) {
+      toast.error('Unable to find your email.')
+      return
+    }
+
+    if (!currentPassword.trim()) {
+      toast.error('Please enter your current password.')
+      return
+    }
+
+    if (!passwordRegex.test(newPassword)) {
+      toast.error('Password must be 8-15 characters and include uppercase, lowercase, number, and special character.')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match.')
+      return
+    }
+
+    if (currentPassword === newPassword) {
+      toast.error('New password cannot be the same as your current password.')
+      return
+    }
+
+    setIsChangingPassword(true)
+
+    try {
+      const { error: loginError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      })
+
+      if (loginError) {
+        toast.error('Current password is incorrect.')
+        return
+      }
+
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      })
+
+      if (error) throw error
+
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      toast.success('Password updated successfully.')
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update password.')
+    } finally {
+      setIsChangingPassword(false)
+    }
+  }
+
   const handleLogout = async () => {
     setIsLoggingOut(true)
 
@@ -132,11 +212,7 @@ export default function Account() {
           <h1 className="font-display text-3xl font-bold">My Account</h1>
 
           <Button variant="outline" onClick={handleLogout} disabled={isLoggingOut}>
-            {isLoggingOut ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <LogOut className="mr-2 h-4 w-4" />
-            )}
+            {isLoggingOut ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogOut className="mr-2 h-4 w-4" />}
             Logout
           </Button>
         </div>
@@ -148,10 +224,7 @@ export default function Account() {
           </CardHeader>
 
           <CardContent className="flex items-center gap-6">
-            <div
-              className="relative cursor-pointer group"
-              onClick={() => fileInputRef.current?.click()}
-            >
+            <div className="relative cursor-pointer group" onClick={() => fileInputRef.current?.click()}>
               <Avatar className="h-24 w-24">
                 <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.name || 'User'} />
                 <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
@@ -167,13 +240,7 @@ export default function Account() {
                 )}
               </div>
 
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleAvatarUpload}
-              />
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
             </div>
 
             <div>
@@ -196,11 +263,7 @@ export default function Account() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => handleChange('name', e.target.value)}
-                />
+                <Input id="name" value={formData.name} onChange={(e) => handleChange('name', e.target.value)} />
               </div>
 
               <div className="space-y-2">
@@ -295,12 +358,70 @@ export default function Account() {
           </CardContent>
         </Card>
 
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Lock className="h-5 w-5 text-primary" />
+              Change Password
+            </CardTitle>
+            <CardDescription>
+              Password must be 8-15 characters and include uppercase, lowercase, number, and special character.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="currentPassword">Current Password</Label>
+              <div className="relative">
+                <Input
+                  id="currentPassword"
+                  type={showPasswords ? 'text' : 'password'}
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="pr-12"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPasswords((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                >
+                  {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="newPassword">New Password</Label>
+              <Input
+                id="newPassword"
+                type={showPasswords ? 'text' : 'password'}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirm New Password</Label>
+              <Input
+                id="confirmPassword"
+                type={showPasswords ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+
+              {passwordsDoNotMatch && <p className="text-sm text-destructive">Passwords do not match.</p>}
+              {passwordsMatch && <p className="text-sm text-green-600">Passwords match.</p>}
+            </div>
+
+            <Button className="w-full" onClick={handleChangePassword} disabled={isChangingPassword}>
+              {isChangingPassword ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lock className="mr-2 h-4 w-4" />}
+              Update Password
+            </Button>
+          </CardContent>
+        </Card>
+
         <Button className="w-full" onClick={handleSave} disabled={isSaving}>
-          {isSaving ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="mr-2 h-4 w-4" />
-          )}
+          {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
           Save Changes
         </Button>
       </main>

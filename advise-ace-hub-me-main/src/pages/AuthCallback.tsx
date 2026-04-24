@@ -15,23 +15,15 @@ function AuthCallback() {
           const { error } = await supabase.auth.exchangeCodeForSession(code)
 
           if (error) {
-            console.error('exchangeCodeForSession error:', error)
-            navigate('/auth', { replace: true })
+            navigate('/auth?error=callback', { replace: true })
             return
           }
         }
 
-        const { data, error } = await supabase.auth.getSession()
-
-        if (error || !data.session?.user) {
-          navigate('/auth', { replace: true })
-          return
-        }
-
-        navigate('/profile', { replace: true })
-      } catch (error) {
-        console.error('Auth callback error:', error)
-        navigate('/auth', { replace: true })
+        await supabase.auth.signOut()
+        navigate('/auth?verified=1', { replace: true })
+      } catch {
+        navigate('/auth?error=callback', { replace: true })
       }
     }
 

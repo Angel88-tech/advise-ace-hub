@@ -29,6 +29,8 @@ export interface Profile {
   updated_at: string
 }
 
+type RegisterResult = 'created' | 'existing' | 'resent'
+
 interface AuthContextType {
   user: User | null
   session: Session | null
@@ -36,7 +38,7 @@ interface AuthContextType {
   isLoading: boolean
   isAuthenticated: boolean
   login: (email: string, password: string, expectedRole?: UserRole) => Promise<Profile | null>
-  register: (email: string, password: string, name: string, role: UserRole) => Promise<void>
+  register: (email: string, password: string, name: string, role: UserRole) => Promise<RegisterResult>
   logout: () => Promise<void>
   refreshProfile: () => Promise<Profile | undefined>
   updateProfile: (updates: Partial<Profile>) => Promise<void>
@@ -86,10 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('user_id', currentUser.id)
       .maybeSingle()
 
-    if (error) {
-      console.error('fetchProfile select error:', error)
-      throw error
-    }
+    if (error) throw error
 
     if (data) {
       const normalized = normalizeProfile(data, currentUser)
@@ -102,10 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const payload = {
       user_id: currentUser.id,
-      name:
-        (currentUser.user_metadata?.name as string) ||
-        currentUser.email?.split('@')[0] ||
-        'User',
+      name: (currentUser.user_metadata?.name as string) || currentUser.email?.split('@')[0] || 'User',
       email: currentUser.email ?? '',
       role: safeRole,
       bio: '',
@@ -130,10 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .select('*')
       .single()
 
-    if (upsertError) {
-      console.error('fetchProfile upsert error:', upsertError)
-      throw upsertError
-    }
+    if (upsertError) throw upsertError
 
     const normalized = normalizeProfile(newProfile, currentUser)
     setProfile(normalized)
@@ -143,8 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadProfileSafely = async (currentUser: User) => {
     try {
       await fetchProfile(currentUser)
-    } catch (error: any) {
-      console.error('Profile load error:', error)
+    } catch {
       setProfile(null)
     }
   }
@@ -154,8 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       return await fetchProfile(user)
-    } catch (error: any) {
-      console.error('refreshProfile error:', error)
+    } catch {
       setProfile(null)
       return
     }
@@ -171,7 +162,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .single()
 
     if (error) throw error
-
     setProfile(normalizeProfile(data, user))
   }
 
@@ -191,9 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const resetPasswordForEmail = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback`,
-    })
+    const { error } = await supabase.auth.resetPasswordForEmail(email)
     if (error) throw error
   }
 
@@ -215,12 +203,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setProfile(null)
         }
-      } catch (error) {
-        console.warn('Auth init warning:', error)
-        if (!mounted) return
-        setSession(null)
-        setUser(null)
-        setProfile(null)
       } finally {
         if (mounted) setIsLoading(false)
       }
@@ -258,11 +240,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
 
     if (error) {
-      if (error.message.toLowerCase().includes('invalid login credentials')) {
+      const msg = error.message.toLowerCase()
+
+      if (msg.includes('invalid login credentials')) {
         throw new Error('Incorrect email or password')
       }
 
-      if (error.message.toLowerCase().includes('email not confirmed')) {
+      if (msg.includes('email not confirmed')) {
         throw new Error('Please verify your email before logging in')
       }
 
@@ -305,7 +289,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string,
     name: string,
     role: UserRole
-  ) => {
+  ): Promise<RegisterResult> => {
     if (role === 'admin') {
       throw new Error('Admin accounts cannot be created from the website')
     }
@@ -314,7 +298,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
         data: {
           name,
           role,
@@ -323,63 +306,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
 
     if (error) {
-      if (error.message.toLowerCase().includes('user already registered')) {
-        throw new Error('This email is already registered')
-      }
+      const msg = error.message.toLowerCase()
 
-      if (error.message.toLowerCase().includes('password')) {
+      if (msg.includes('user already registered')) return 'existing'
+      if (msg.includes('already registered')) return 'existing'
+
+      if (msg.includes('password')) {
         throw new Error('Password does not meet security requirements')
       }
 
-      if (error.message.toLowerCase().includes('email')) {
+      if (msg.includes('email')) {
         throw new Error('Please enter a valid email address')
       }
 
       throw new Error(error.message || 'Unable to create account right now')
     }
 
+    const identitiesCount = data.user?.identities?.length ?? 0
+
+    if (identitiesCount === 0) {
+      if (data.session) await supabase.auth.signOut()
+      return 'existing'
+    }
+
     const userId = data.user?.id
 
-    if (!userId) {
-      throw new Error('Your account was created, but user data is missing')
+    if (userId) {
+      const payload = {
+        user_id: userId,
+        name,
+        email,
+        role,
+        bio: '',
+        avatar_url: null,
+        major: null,
+        year: null,
+        phone: null,
+        location: null,
+        linkedin_url: null,
+        website_url: null,
+        language: 'en',
+        theme: 'light',
+        privacy_profile_public: true,
+        privacy_show_email: false,
+        accessibility_font_size: 'medium',
+        accessibility_reduce_motion: false,
+        accessibility_high_contrast: false,
+      }
+
+      await getProfilesTable().upsert(payload, {
+        onConflict: 'user_id',
+      })
     }
 
-    const payload = {
-      user_id: userId,
-      name,
-      email,
-      role,
-      bio: '',
-      avatar_url: null,
-      major: null,
-      year: null,
-      phone: null,
-      location: null,
-      linkedin_url: null,
-      website_url: null,
-      language: 'en',
-      theme: 'light',
-      privacy_profile_public: true,
-      privacy_show_email: false,
-      accessibility_font_size: 'medium',
-      accessibility_reduce_motion: false,
-      accessibility_high_contrast: false,
+    if (data.session) {
+      await supabase.auth.signOut()
     }
 
-    const { error: profileError } = await getProfilesTable().upsert(payload, {
-      onConflict: 'user_id',
-    })
-
-    if (profileError) {
-      throw new Error('Your account was created, but we could not finish setting up your profile')
-    }
+    return 'created'
   }
 
   const logout = async () => {
     try {
       await supabase.auth.signOut()
-    } catch (error) {
-      console.error('logout error:', error)
     } finally {
       setUser(null)
       setSession(null)

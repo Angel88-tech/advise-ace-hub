@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Landing from './pages/Landing'
 import Auth from './pages/Auth'
 import AuthCallback from './pages/AuthCallback'
+import ResetPassword from './pages/ResetPassword'
 import NotFound from './pages/NotFound'
 import Chat from './pages/Chat'
 import Account from './pages/Account'
@@ -19,6 +20,7 @@ import AdvisorDashboard from './pages/advisor/AdvisorDashboard'
 import MentorDashboard from './pages/mentor/MentorDashboard'
 
 import ThemeToggle from './components/ThemeToggle'
+import { CareerChatWidget } from './components/CareerChatWidget'
 
 function getDashboardPath(role?: string) {
   switch (role) {
@@ -67,7 +69,9 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
   if (isLoading) return <FullPageLoader />
 
-  if (isAuthenticated && profile && profile.role !== 'admin') {
+  const skipRedirect = sessionStorage.getItem('skip-auth-redirect') === '1'
+
+  if (!skipRedirect && isAuthenticated && profile && profile.role !== 'admin') {
     return <Navigate to={getDashboardPath(profile.role)} replace />
   }
 
@@ -79,7 +83,6 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <ThemeToggle />
-
         <Toaster richColors position="top-center" />
 
         <Routes>
@@ -95,6 +98,7 @@ export default function App() {
           />
 
           <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           <Route
             path="/profile"
@@ -179,6 +183,8 @@ export default function App() {
 
           <Route path="*" element={<NotFound />} />
         </Routes>
+
+        <CareerChatWidget />
       </BrowserRouter>
     </AuthProvider>
   )

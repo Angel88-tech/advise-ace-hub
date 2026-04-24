@@ -10,14 +10,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Compass, Menu, X, User, LogOut, Settings, Shield } from 'lucide-react'
+import { Compass, Menu, X, User, LogOut, Settings } from 'lucide-react'
 
 export function Navbar() {
   const { profile, isAuthenticated, logout, isLoading } = useAuth()
   const navigate = useNavigate()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
-  const isReadyUser = isAuthenticated && !!profile
+  const isReadyUser = isAuthenticated && !!profile && profile.role !== 'admin'
 
   const handleLogout = async () => {
     await logout()
@@ -31,15 +31,13 @@ export function Navbar() {
         return '/advisor/dashboard'
       case 'mentor':
         return '/mentor/dashboard'
-      case 'admin':
-        return '/admin/dashboard'
       default:
         return '/profile'
     }
   }
 
   return (
-    <nav className="border-b bg-background">
+    <nav className="sticky top-0 z-[9999] border-b bg-background">
       <div className="container mx-auto flex items-center justify-between px-4 py-4">
         <Link to="/" className="flex items-center gap-2 text-xl font-bold">
           <Compass className="h-5 w-5" />
@@ -49,31 +47,24 @@ export function Navbar() {
         <div className="hidden md:flex items-center gap-4">
           {isLoading ? null : isReadyUser ? (
             <>
-              <Link to={getDashboardLink()} className="text-sm font-medium">
+              <Link to={getDashboardLink()} className="text-sm font-medium hover:text-primary">
                 Dashboard
               </Link>
 
               {profile?.role === 'student' && (
                 <>
-                  <Link to="/student/recommendations" className="text-sm font-medium">
+                  <Link
+                    to="/student/recommendations"
+                    className="text-sm font-medium hover:text-primary"
+                  >
                     Recommendations
                   </Link>
-                  <Link to="/student/mentors" className="text-sm font-medium">
-                    Find Mentors
-                  </Link>
-                </>
-              )}
 
-              {profile?.role === 'admin' && (
-                <>
-                  <Link to="/admin/students" className="text-sm font-medium">
-                    Students
-                  </Link>
-                  <Link to="/admin/advisors" className="text-sm font-medium">
-                    Advisors
-                  </Link>
-                  <Link to="/admin/mentors" className="text-sm font-medium">
-                    Mentors
+                  <Link
+                    to="/student/mentors"
+                    className="text-sm font-medium hover:text-primary"
+                  >
+                    Find Mentors
                   </Link>
                 </>
               )}
@@ -82,7 +73,9 @@ export function Navbar() {
                 <DropdownMenuTrigger asChild>
                   <button type="button">
                     <Avatar>
-                      <AvatarFallback>{profile?.name?.charAt(0) || 'U'}</AvatarFallback>
+                      <AvatarFallback>
+                        {profile?.name?.charAt(0) || 'U'}
+                      </AvatarFallback>
                     </Avatar>
                   </button>
                 </DropdownMenuTrigger>
@@ -101,13 +94,6 @@ export function Navbar() {
                     <User className="mr-2 h-4 w-4" />
                     Profile
                   </DropdownMenuItem>
-
-                  {profile?.role === 'admin' && (
-                    <DropdownMenuItem onClick={() => navigate('/admin/dashboard')}>
-                      <Shield className="mr-2 h-4 w-4" />
-                      Admin Panel
-                    </DropdownMenuItem>
-                  )}
 
                   <DropdownMenuItem onClick={() => navigate('/settings')}>
                     <Settings className="mr-2 h-4 w-4" />
@@ -128,6 +114,7 @@ export function Navbar() {
               <Link to="/auth">
                 <Button variant="ghost">Sign In</Button>
               </Link>
+
               <Link to="/auth">
                 <Button>Get Started</Button>
               </Link>
@@ -135,13 +122,17 @@ export function Navbar() {
           )}
         </div>
 
-        <button type="button" className="md:hidden" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+        <button
+          type="button"
+          className="md:hidden"
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        >
           {isMobileMenuOpen ? <X /> : <Menu />}
         </button>
       </div>
 
       {isMobileMenuOpen && (
-        <div className="flex flex-col gap-3 border-t px-4 py-4 md:hidden">
+        <div className="flex flex-col gap-3 border-t px-4 py-4 md:hidden bg-background">
           {isLoading ? null : isReadyUser ? (
             <>
               <Link to={getDashboardLink()} onClick={() => setIsMobileMenuOpen(false)}>
@@ -150,28 +141,29 @@ export function Navbar() {
 
               {profile?.role === 'student' && (
                 <>
-                  <Link to="/student/recommendations" onClick={() => setIsMobileMenuOpen(false)}>
+                  <Link
+                    to="/student/recommendations"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
                     Recommendations
                   </Link>
-                  <Link to="/student/mentors" onClick={() => setIsMobileMenuOpen(false)}>
+
+                  <Link
+                    to="/student/mentors"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
                     Find Mentors
                   </Link>
                 </>
               )}
 
-              {profile?.role === 'admin' && (
-                <>
-                  <Link to="/admin/students" onClick={() => setIsMobileMenuOpen(false)}>
-                    Students
-                  </Link>
-                  <Link to="/admin/advisors" onClick={() => setIsMobileMenuOpen(false)}>
-                    Advisors
-                  </Link>
-                  <Link to="/admin/mentors" onClick={() => setIsMobileMenuOpen(false)}>
-                    Mentors
-                  </Link>
-                </>
-              )}
+              <Link to="/profile" onClick={() => setIsMobileMenuOpen(false)}>
+                Profile
+              </Link>
+
+              <Link to="/settings" onClick={() => setIsMobileMenuOpen(false)}>
+                Settings
+              </Link>
 
               <button
                 type="button"
@@ -186,6 +178,7 @@ export function Navbar() {
               <Link to="/auth" onClick={() => setIsMobileMenuOpen(false)}>
                 Sign In
               </Link>
+
               <Link to="/auth" onClick={() => setIsMobileMenuOpen(false)}>
                 Get Started
               </Link>
