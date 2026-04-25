@@ -15,6 +15,7 @@ import StudentDashboard from './pages/student/StudentDashboard'
 import Recommendations from './pages/student/Recommendations'
 import Mentors from './pages/student/Mentors'
 import SkillGapAnalysis from './pages/student/SkillGapAnalysis'
+import Transcript from './pages/student/Transcript'
 
 import AdvisorDashboard from './pages/advisor/AdvisorDashboard'
 import MentorDashboard from './pages/mentor/MentorDashboard'
@@ -38,7 +39,7 @@ function getDashboardPath(role?: string) {
 function FullPageLoader() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-lg font-medium text-slate-600">Loading...</div>
+      <div className="text-lg font-medium">Loading...</div>
     </div>
   )
 }
@@ -55,7 +56,6 @@ function ProtectedRoute({
   if (isLoading) return <FullPageLoader />
   if (!isAuthenticated) return <Navigate to="/auth" replace />
   if (!profile) return <Navigate to="/auth" replace />
-  if (profile.role === 'admin') return <Navigate to="/auth" replace />
 
   if (allowedRoles && !allowedRoles.includes(profile.role)) {
     return <Navigate to={getDashboardPath(profile.role)} replace />
@@ -69,9 +69,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
   if (isLoading) return <FullPageLoader />
 
-  const skipRedirect = sessionStorage.getItem('skip-auth-redirect') === '1'
-
-  if (!skipRedirect && isAuthenticated && profile && profile.role !== 'admin') {
+  if (isAuthenticated && profile) {
     return <Navigate to={getDashboardPath(profile.role)} replace />
   }
 
@@ -150,6 +148,15 @@ export default function App() {
             element={
               <ProtectedRoute allowedRoles={['student']}>
                 <Mentors />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/student/transcript"
+            element={
+              <ProtectedRoute allowedRoles={['student']}>
+                <Transcript />
               </ProtectedRoute>
             }
           />

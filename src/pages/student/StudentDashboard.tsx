@@ -32,7 +32,7 @@ export default function StudentDashboard() {
       title: 'Skill Gap Analysis', 
       description: 'Identify areas to improve',
       icon: BarChart3,
-      href: '/student/skills',
+      href: '/student/skill-gap',
       color: 'text-accent',
       bg: 'bg-accent/10'
     },

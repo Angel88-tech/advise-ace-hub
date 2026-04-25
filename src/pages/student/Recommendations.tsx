@@ -1,250 +1,342 @@
-import { useState } from 'react';
-import { Navbar } from '@/components/layout/Navbar';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  TrendingUp, 
-  TrendingDown,
-  DollarSign,
-  Briefcase,
-  ChevronRight,
-  Sparkles,
-  Filter,
-  Target
-} from 'lucide-react';
-import { CareerRecommendation } from '@/types';
+import { useEffect, useMemo, useState } from 'react'
+import { Navbar } from '@/components/layout/Navbar'
+import { supabase } from '@/integrations/supabase/client'
+import { useAuth } from '@/contexts/AuthContext'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
+import { Loader2, Sparkles, TrendingUp, TrendingDown, Target, Briefcase, DollarSign, Filter, ChevronRight } from 'lucide-react'
+import { toast } from 'sonner'
 
-const mockRecommendations: CareerRecommendation[] = [
-  {
-    id: '1',
-    title: 'Data Scientist',
-    description: 'Analyze complex data sets to help organizations make better decisions. Use machine learning and statistical methods.',
-    matchScore: 92,
-    requiredSkills: [
-      { id: '1', name: 'Python', category: 'technical', level: 'advanced', source: 'verified' },
-      { id: '2', name: 'Machine Learning', category: 'technical', level: 'intermediate', source: 'verified' },
-      { id: '3', name: 'Statistics', category: 'analytical', level: 'advanced', source: 'verified' },
-    ],
-    salaryRange: { min: 95000, max: 150000, currency: 'USD' },
-    demandTrend: 'growing',
-    jobOpenings: 45000,
-    industries: ['Technology', 'Finance', 'Healthcare'],
-  },
-  {
-    id: '2',
-    title: 'Software Engineer',
-    description: 'Design, develop, and maintain software applications. Work with cross-functional teams to deliver high-quality products.',
-    matchScore: 87,
-    requiredSkills: [
-      { id: '4', name: 'JavaScript', category: 'technical', level: 'advanced', source: 'verified' },
-      { id: '5', name: 'System Design', category: 'technical', level: 'intermediate', source: 'verified' },
-      { id: '6', name: 'Problem Solving', category: 'analytical', level: 'advanced', source: 'verified' },
-    ],
-    salaryRange: { min: 85000, max: 160000, currency: 'USD' },
-    demandTrend: 'growing',
-    jobOpenings: 120000,
-    industries: ['Technology', 'Finance', 'E-commerce'],
-  },
-  {
-    id: '3',
-    title: 'Product Manager',
-    description: 'Lead product strategy and development. Bridge technical teams with business goals to create successful products.',
-    matchScore: 81,
-    requiredSkills: [
-      { id: '7', name: 'Strategic Thinking', category: 'analytical', level: 'advanced', source: 'verified' },
-      { id: '8', name: 'Communication', category: 'communication', level: 'expert', source: 'verified' },
-      { id: '9', name: 'Data Analysis', category: 'analytical', level: 'intermediate', source: 'verified' },
-    ],
-    salaryRange: { min: 100000, max: 180000, currency: 'USD' },
-    demandTrend: 'stable',
-    jobOpenings: 35000,
-    industries: ['Technology', 'Consumer Goods', 'SaaS'],
-  },
-  {
-    id: '4',
-    title: 'UX Designer',
-    description: 'Create intuitive and engaging user experiences. Conduct research and design user interfaces.',
-    matchScore: 74,
-    requiredSkills: [
-      { id: '10', name: 'UI Design', category: 'creative', level: 'advanced', source: 'verified' },
-      { id: '11', name: 'User Research', category: 'analytical', level: 'intermediate', source: 'verified' },
-      { id: '12', name: 'Prototyping', category: 'technical', level: 'intermediate', source: 'verified' },
-    ],
-    salaryRange: { min: 75000, max: 130000, currency: 'USD' },
-    demandTrend: 'growing',
-    jobOpenings: 28000,
-    industries: ['Technology', 'Design Agencies', 'E-commerce'],
-  },
-];
+type Occupation = {
+  id: string
+  title: string
+  description: string
+  industry: string | null
+  outlook: string | null
+}
 
-const formatSalary = (amount: number) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(amount);
-};
+type Skill = {
+  id: string
+  name: string
+}
+
+type Recommendation = {
+  occupation: Occupation
+  matchScore: number
+  matchedSkills: string[]
+  missingSkills: string[]
+}
+
+const normalize = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 
 export default function Recommendations() {
-  const [selectedCareer, setSelectedCareer] = useState<CareerRecommendation | null>(null);
+  const { user } = useAuth()
+
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([])
+  const [selectedCareer, setSelectedCareer] = useState<Recommendation | null>(null)
+  const [studentProfile, setStudentProfile] = useState<any>(null)
+
+  useEffect(() => {
+    loadRecommendations()
+  }, [user?.id])
+
+  const loadRecommendations = async () => {
+    if (!user?.id) return
+
+    setLoading(true)
+
+    const { data: profileData, error: profileError } = await (supabase as any)
+      .from('student_academic_profiles')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (profileError || !profileData) {
+      setLoading(false)
+      toast.error('Please complete your transcript first')
+      return
+    }
+
+    if (!profileData.ai_consent) {
+      setLoading(false)
+      toast.error('Enable AI consent in Transcript page first')
+      return
+    }
+
+    setStudentProfile(profileData)
+
+    const { data: occupations, error: occError } = await (supabase as any)
+      .from('occupations')
+      .select('*')
+
+    if (occError) {
+      setLoading(false)
+      toast.error(occError.message)
+      return
+    }
+
+    const { data: occupationSkills, error: osError } = await (supabase as any)
+      .from('occupation_skills')
+      .select(`
+        occupation_id,
+        skill_id,
+        skills(id,name)
+      `)
+
+    if (osError) {
+      setLoading(false)
+      toast.error(osError.message)
+      return
+    }
+
+    let studentText = normalize(
+      `${profileData.major || ''} ${profileData.completed_courses || ''} ${profileData.self_reported_skills || ''}`
+    )
+
+    const expandedSkills: Record<string, string[]> = {
+      python: ['programming', 'data analysis'],
+      java: ['programming', 'software engineering'],
+      javascript: ['programming', 'web development'],
+      sql: ['database systems', 'data analysis'],
+      database: ['database systems', 'sql'],
+      ai: ['machine learning', 'data analysis'],
+      'artificial intelligence': ['machine learning', 'data analysis'],
+      cybersecurity: ['information security', 'systems evaluation'],
+      network: ['systems analysis', 'information security'],
+      communication: ['speaking', 'active listening'],
+      math: ['mathematics'],
+      statistics: ['mathematics', 'data analysis'],
+      'problem solving': ['complex problem solving', 'critical thinking'],
+      programming: ['programming'],
+    }
+
+    Object.entries(expandedSkills).forEach(([key, values]) => {
+      if (studentText.includes(key)) {
+        studentText += ' ' + values.join(' ')
+      }
+    })
+
+    const results: Recommendation[] = occupations.map((occupation: Occupation) => {
+      const related = occupationSkills.filter((row: any) => row.occupation_id === occupation.id)
+
+      const requiredSkills = related.map((r: any) => r.skills?.name).filter(Boolean)
+
+      const matchedSkills = requiredSkills.filter((skill: string) =>
+        studentText.includes(normalize(skill))
+      )
+
+      const missingSkills = requiredSkills.filter(
+        (skill: string) => !studentText.includes(normalize(skill))
+      )
+
+      const matchScore =
+        requiredSkills.length > 0
+          ? Math.round((matchedSkills.length / requiredSkills.length) * 100)
+          : 0
+
+      return {
+        occupation,
+        matchScore,
+        matchedSkills,
+        missingSkills,
+      }
+    })
+
+    const sorted = results
+      .filter((item) => item.matchScore > 0)
+      .sort((a, b) => b.matchScore - a.matchScore)
+
+    setRecommendations(sorted)
+    setSelectedCareer(sorted[0] || null)
+    setLoading(false)
+  }
+
+  const saveResults = async () => {
+    if (!user?.id || recommendations.length === 0) return
+
+    setSaving(true)
+
+    const rows = recommendations.map((item) => ({
+      user_id: user.id,
+      occupation_id: item.occupation.id,
+      match_score: item.matchScore,
+      matched_skills: item.matchedSkills,
+      missing_skills: item.missingSkills,
+    }))
+
+    const { error } = await (supabase as any)
+      .from('recommendations')
+      .upsert(rows, { onConflict: 'user_id,occupation_id' })
+
+    setSaving(false)
+
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+
+    toast.success('Results saved successfully')
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <main className="container mx-auto px-4 py-16 flex justify-center">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
+
       <main className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-8">
           <div>
-            <h1 className="font-display text-3xl font-bold mb-2">Career Recommendations</h1>
+            <h1 className="text-3xl font-bold mb-2">Career Recommendations</h1>
             <p className="text-muted-foreground">
-              Personalized career paths based on your skills and market demand
+              Personalized career paths based on your profile and O*NET skills
             </p>
           </div>
+
           <div className="flex gap-2">
-            <Button variant="outline">
+            <Button variant="outline" onClick={loadRecommendations}>
               <Filter className="h-4 w-4 mr-2" />
-              Filters
+              Refresh
             </Button>
-            <Button variant="gradient">
-              <Sparkles className="h-4 w-4 mr-2" />
-              Refresh Recommendations
+
+            <Button onClick={saveResults} disabled={saving}>
+              {saving ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4 mr-2" />
+              )}
+              Save Results
             </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Recommendations List */}
-          <div className="lg:col-span-2 space-y-4">
-            {mockRecommendations.map((career, index) => (
-              <Card 
-                key={career.id} 
-                variant={selectedCareer?.id === career.id ? 'elevated' : 'default'}
-                className={`cursor-pointer transition-all ${selectedCareer?.id === career.id ? 'ring-2 ring-primary' : ''}`}
-                onClick={() => setSelectedCareer(career)}
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-primary text-lg font-bold text-primary-foreground">
-                        {index + 1}
+        {recommendations.length === 0 ? (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <Target className="mx-auto h-10 w-10 text-muted-foreground mb-4" />
+              <h2 className="text-xl font-semibold mb-2">No recommendations yet</h2>
+              <p className="text-muted-foreground">
+                Add more skills in Transcript to improve matching.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 space-y-4">
+              {recommendations.map((career, index) => (
+                <Card
+                  key={career.occupation.id}
+                  className={`cursor-pointer transition-all ${
+                    selectedCareer?.occupation.id === career.occupation.id
+                      ? 'ring-2 ring-primary'
+                      : ''
+                  }`}
+                  onClick={() => setSelectedCareer(career)}
+                >
+                  <CardContent className="p-6">
+                    <div className="flex justify-between gap-4">
+                      <div className="flex gap-4">
+                        <div className="h-12 w-12 rounded-xl bg-primary text-white flex items-center justify-center font-bold">
+                          {index + 1}
+                        </div>
+
+                        <div>
+                          <h3 className="text-lg font-semibold">
+                            {career.occupation.title}
+                          </h3>
+
+                          <p className="text-sm text-muted-foreground mb-3">
+                            {career.occupation.description}
+                          </p>
+
+                          <div className="flex gap-2 flex-wrap">
+                            {career.matchedSkills.slice(0, 3).map((skill) => (
+                              <Badge key={skill}>{skill}</Badge>
+                            ))}
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-display text-xl font-semibold mb-1">{career.title}</h3>
-                        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                          {career.description}
+
+                      <div className="text-right">
+                        <p className="text-2xl font-bold text-primary">
+                          {career.matchScore}%
                         </p>
-                        <div className="flex flex-wrap gap-2">
-                          {career.industries.slice(0, 3).map((industry) => (
-                            <Badge key={industry} variant="secondary">{industry}</Badge>
-                          ))}
-                        </div>
+                        <p className="text-xs text-muted-foreground">Match</p>
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-2xl font-bold text-primary">{career.matchScore}%</div>
-                      <div className="text-xs text-muted-foreground">Match</div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            <div>
+              {selectedCareer && (
+                <Card className="sticky top-24">
+                  <CardHeader>
+                    <CardTitle>{selectedCareer.occupation.title}</CardTitle>
+                    <CardDescription>
+                      {selectedCareer.occupation.description}
+                    </CardDescription>
+                  </CardHeader>
+
+                  <CardContent className="space-y-6">
+                    <div>
+                      <div className="flex justify-between text-sm mb-2">
+                        <span>Match Score</span>
+                        <span>{selectedCareer.matchScore}%</span>
+                      </div>
+                      <Progress value={selectedCareer.matchScore} />
                     </div>
-                  </div>
-                  
-                  <div className="mt-4 pt-4 border-t grid grid-cols-3 gap-4">
-                    <div className="flex items-center gap-2">
-                      <DollarSign className="h-4 w-4 text-muted-foreground" />
-                      <div className="text-sm">
-                        <div className="font-medium">{formatSalary(career.salaryRange.min)} - {formatSalary(career.salaryRange.max)}</div>
-                        <div className="text-xs text-muted-foreground">Salary Range</div>
+
+                    <div>
+                      <h4 className="font-semibold mb-2">Matched Skills</h4>
+                      <div className="flex gap-2 flex-wrap">
+                        {selectedCareer.matchedSkills.map((skill) => (
+                          <Badge key={skill}>{skill}</Badge>
+                        ))}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Briefcase className="h-4 w-4 text-muted-foreground" />
-                      <div className="text-sm">
-                        <div className="font-medium">{career.jobOpenings.toLocaleString()}</div>
-                        <div className="text-xs text-muted-foreground">Job Openings</div>
+
+                    <div>
+                      <h4 className="font-semibold mb-2">Missing Skills</h4>
+                      <div className="flex gap-2 flex-wrap">
+                        {selectedCareer.missingSkills.map((skill) => (
+                          <Badge key={skill} variant="outline">
+                            {skill}
+                          </Badge>
+                        ))}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {career.demandTrend === 'growing' ? (
-                        <TrendingUp className="h-4 w-4 text-accent" />
-                      ) : career.demandTrend === 'declining' ? (
-                        <TrendingDown className="h-4 w-4 text-destructive" />
-                      ) : (
-                        <Target className="h-4 w-4 text-chart-4" />
-                      )}
-                      <div className="text-sm">
-                        <div className="font-medium capitalize">{career.demandTrend}</div>
-                        <div className="text-xs text-muted-foreground">Demand Trend</div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+
+                    <Button className="w-full">
+                      View Skill Gap Analysis
+                      <ChevronRight className="h-4 w-4 ml-2" />
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           </div>
-
-          {/* Detail Panel */}
-          <div className="lg:col-span-1">
-            {selectedCareer ? (
-              <Card variant="elevated" className="sticky top-24">
-                <CardHeader>
-                  <CardTitle>{selectedCareer.title}</CardTitle>
-                  <CardDescription>{selectedCareer.description}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* Match Score */}
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span>Match Score</span>
-                      <span className="font-semibold text-primary">{selectedCareer.matchScore}%</span>
-                    </div>
-                    <Progress value={selectedCareer.matchScore} className="h-2" />
-                  </div>
-
-                  {/* Required Skills */}
-                  <div>
-                    <h4 className="font-semibold mb-3">Required Skills</h4>
-                    <div className="space-y-2">
-                      {selectedCareer.requiredSkills.map((skill) => (
-                        <div key={skill.id} className="flex items-center justify-between">
-                          <Badge variant="skill">{skill.name}</Badge>
-                          <span className="text-xs text-muted-foreground capitalize">{skill.level}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Industries */}
-                  <div>
-                    <h4 className="font-semibold mb-3">Industries</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedCareer.industries.map((industry) => (
-                        <Badge key={industry} variant="outline">{industry}</Badge>
-                      ))}
-                    </div>
-                  </div>
-
-                  <Button variant="gradient" className="w-full">
-                    View Skill Gap Analysis
-                    <ChevronRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card variant="elevated">
-                <CardContent className="p-8 text-center">
-                  <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="font-semibold mb-2">Select a Career</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Click on a career recommendation to see detailed information
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </div>
+        )}
       </main>
     </div>
-  );
+  )
 }
