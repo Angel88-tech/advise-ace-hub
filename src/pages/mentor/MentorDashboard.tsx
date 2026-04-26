@@ -1,252 +1,565 @@
-import { useState } from 'react';
-import { Navbar } from '@/components/layout/Navbar';
-import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { 
-  Users, 
-  MessageSquare, 
-  Clock,
+import { useEffect, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Navbar } from '@/components/layout/Navbar'
+import { useAuth } from '@/contexts/AuthContext'
+import { supabase } from '@/integrations/supabase/client'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import {
+  MessageSquare,
   Check,
   X,
-  User,
-  Calendar
-} from 'lucide-react';
-import { toast } from 'sonner';
+  Loader2,
+  Briefcase,
+  Trash2,
+  Eye,
+  FileText,
+} from 'lucide-react'
+import { toast } from 'sonner'
 
-const pendingRequests = [
-  {
-    id: '1',
-    studentName: 'Alex Johnson',
-    major: 'Computer Science',
-    year: 3,
-    message: 'I\'m interested in transitioning to data science and would love your guidance on building the right skills.',
-    requestDate: '2024-01-18',
-  },
-  {
-    id: '2',
-    studentName: 'Lisa Park',
-    major: 'Statistics',
-    year: 4,
-    message: 'Looking for mentorship in machine learning applications in finance. Your experience at TechCorp would be invaluable.',
-    requestDate: '2024-01-17',
-  },
-];
+type RequestRow = {
+  id: string
+  student_id: string
+  professional_id: string
+  professional_role: string
+  status: 'pending' | 'accepted' | 'rejected'
+  message: string | null
+  created_at: string
+  updated_at: string | null
+}
 
-const currentMentees = [
-  {
-    id: '1',
-    name: 'Sarah Chen',
-    major: 'Data Science',
-    year: 3,
-    startDate: '2023-09-15',
-    lastMeeting: '2024-01-10',
-  },
-  {
-    id: '2',
-    name: 'James Wilson',
-    major: 'Computer Science',
-    year: 4,
-    startDate: '2023-11-01',
-    lastMeeting: '2024-01-12',
-  },
-];
+type StudentInfo = {
+  user_id: string
+  name: string | null
+  role: string | null
+}
+
+type StudentAcademicProfile = {
+  major: string | null
+  gpa: number | null
+  university: string | null
+  completed_courses: string | null
+  self_reported_skills: string | null
+  transcript_file_name: string | null
+  transcript_file_path: string | null
+  visible_to_mentors: boolean
+  visibility_settings: any
+}
 
 export default function MentorDashboard() {
-  const { profile } = useAuth();
-  const [isAvailable, setIsAvailable] = useState(true);
-  const [requests, setRequests] = useState(pendingRequests);
+  const { user, profile } = useAuth()
+  const navigate = useNavigate()
+  const profileRef = useRef<HTMLDivElement | null>(null)
 
-  const handleAccept = (requestId: string, studentName: string) => {
-    setRequests(requests.filter(r => r.id !== requestId));
-    toast.success(`Accepted mentorship request from ${studentName}`);
-  };
+  const [loading, setLoading] = useState(true)
+  const [requests, setRequests] = useState<RequestRow[]>([])
+  const [acceptedRequests, setAcceptedRequests] = useState<RequestRow[]>([])
+  const [students, setStudents] = useState<StudentInfo[]>([])
+  const [updatingRequestId, setUpdatingRequestId] = useState<string | null>(null)
+  const [removingId, setRemovingId] = useState<string | null>(null)
+  const [hasProfessionalProfile, setHasProfessionalProfile] = useState(false)
 
-  const handleDecline = (requestId: string, studentName: string) => {
-    setRequests(requests.filter(r => r.id !== requestId));
-    toast.info(`Declined mentorship request from ${studentName}`);
-  };
+  const [selectedStudentName, setSelectedStudentName] = useState<string | null>(null)
+  const [studentProfile, setStudentProfile] = useState<StudentAcademicProfile | null>(null)
+  const [profileBlocked, setProfileBlocked] = useState(false)
+  const [loadingStudentProfile, setLoadingStudentProfile] = useState(false)
+
+  useEffect(() => {
+    loadData()
+  }, [user?.id])
+
+  const loadData = async () => {
+    if (!user?.id) return
+
+    setLoading(true)
+
+    const { data: professionalData } = await (supabase as any)
+      .from('professional_profiles')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    setHasProfessionalProfile(!!professionalData)
+
+    const { data: requestData, error } = await (supabase as any)
+      .from('connection_requests')
+      .select('*')
+      .eq('professional_id', user.id)
+      .eq('professional_role', 'mentor')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      toast.error(error.message)
+      setLoading(false)
+      return
+    }
+
+    const rows = requestData || []
+
+    setRequests(rows.filter((item: RequestRow) => item.status === 'pending'))
+    setAcceptedRequests(rows.filter((item: RequestRow) => item.status === 'accepted'))
+
+    const studentIds = Array.from(new Set(rows.map((item: RequestRow) => item.student_id)))
+
+    if (studentIds.length > 0) {
+      const { data: studentData } = await (supabase as any)
+        .from('profiles')
+        .select('user_id, name, role')
+        .in('user_id', studentIds)
+
+      setStudents(studentData || [])
+    } else {
+      setStudents([])
+    }
+
+    setLoading(false)
+  }
+
+  const getStudent = (studentId: string) => {
+    return students.find((student) => student.user_id === studentId)
+  }
+
+  const getInitials = (name?: string | null) => {
+    return (name || 'ST')
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase()
+  }
+
+  const canShowField = (field: string) => {
+    if (!studentProfile?.visible_to_mentors) return false
+
+    const settings = studentProfile.visibility_settings
+    if (!settings) return true
+
+    const value = settings[field]
+
+    if (typeof value === 'boolean') return value
+    if (typeof value === 'object') return value?.mentor === true
+
+    return true
+  }
+
+  const getTranscriptFileUrl = () => {
+    if (!studentProfile?.transcript_file_path) return null
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from('transcripts').getPublicUrl(studentProfile.transcript_file_path)
+
+    return publicUrl
+  }
+
+  const viewStudentProfile = async (request: RequestRow) => {
+    const student = getStudent(request.student_id)
+
+    setSelectedStudentName(student?.name || 'Student')
+    setStudentProfile(null)
+    setProfileBlocked(false)
+    setLoadingStudentProfile(true)
+
+    setTimeout(() => {
+      profileRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 100)
+
+    const { data, error } = await (supabase as any)
+      .from('student_academic_profiles')
+      .select('*')
+      .eq('user_id', request.student_id)
+      .maybeSingle()
+
+    setLoadingStudentProfile(false)
+
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+
+    if (!data) {
+      setProfileBlocked(true)
+      toast.info('This student does not allow mentors to view their profile')
+      return
+    }
+
+    if (!data.visible_to_mentors) {
+      setProfileBlocked(true)
+      toast.info('This student does not allow mentors to view their profile')
+      return
+    }
+
+    setStudentProfile(data)
+  }
+
+  const handleAccept = async (request: RequestRow) => {
+    setUpdatingRequestId(request.id)
+
+    const { error: updateError } = await (supabase as any)
+      .from('connection_requests')
+      .update({
+        status: 'accepted',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', request.id)
+
+    if (updateError) {
+      setUpdatingRequestId(null)
+      toast.error(updateError.message)
+      return
+    }
+
+    await (supabase as any).from('conversations').upsert(
+      {
+        student_id: request.student_id,
+        professional_id: user?.id,
+        request_id: request.id,
+      },
+      { onConflict: 'student_id,professional_id' }
+    )
+
+    setUpdatingRequestId(null)
+    toast.success('Request accepted')
+    await loadData()
+  }
+
+  const handleDecline = async (request: RequestRow) => {
+    setUpdatingRequestId(request.id)
+
+    await (supabase as any)
+      .from('connection_requests')
+      .update({
+        status: 'rejected',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', request.id)
+
+    setUpdatingRequestId(null)
+    toast.info('Request declined')
+    await loadData()
+  }
+
+  const removeStudent = async (request: RequestRow) => {
+    setRemovingId(request.id)
+
+    await (supabase as any)
+      .from('connection_requests')
+      .update({
+        status: 'rejected',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', request.id)
+
+    setRemovingId(null)
+    toast.success('Student removed')
+    await loadData()
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <main className="container mx-auto px-4 py-16">
+          <div className="flex justify-center">
+            <Loader2 className="h-7 w-7 animate-spin" />
+          </div>
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
+
       <main className="container mx-auto px-4 py-8">
-        {/* Welcome Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="font-display text-3xl font-bold mb-2">
               Welcome, {profile?.name?.split(' ')[0]}! 👋
             </h1>
             <p className="text-muted-foreground">
-              Manage your mentees and mentorship requests
+              Manage your mentorship requests and accepted students.
             </p>
           </div>
-          <div className="flex items-center gap-3 p-4 rounded-lg border bg-card">
-            <Label htmlFor="availability" className="text-sm font-medium">
-              {isAvailable ? 'Available for mentorship' : 'Not accepting mentees'}
-            </Label>
-            <Switch
-              id="availability"
-              checked={isAvailable}
-              onCheckedChange={setIsAvailable}
-            />
+
+          <Button asChild>
+            <Link to="/mentor/profile">
+              <Briefcase className="mr-2 h-4 w-4" />
+              {hasProfessionalProfile ? 'Edit Mentor Profile' : 'Complete Mentor Profile'}
+            </Link>
+          </Button>
+        </div>
+
+        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Card>
+            <CardContent className="p-6">
+              <div className="text-2xl font-bold">{acceptedRequests.length}</div>
+              <div className="text-sm text-muted-foreground">Current Mentees</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="text-2xl font-bold">{requests.length}</div>
+              <div className="text-sm text-muted-foreground">Pending Requests</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="text-2xl font-bold">
+                {hasProfessionalProfile ? 'Ready' : 'Setup'}
+              </div>
+              <div className="text-sm text-muted-foreground">Profile Status</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {selectedStudentName && (
+          <div ref={profileRef}>
+            <Card className="mb-8 border-primary/30">
+              <CardHeader>
+                <CardTitle>{selectedStudentName} Profile</CardTitle>
+                <CardDescription>
+                  Visible academic information based on student permission
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent>
+                {loadingStudentProfile ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  </div>
+                ) : profileBlocked ? (
+                  <p className="text-sm text-muted-foreground">
+                    This student does not allow mentors to view their academic profile.
+                  </p>
+                ) : !studentProfile ? (
+                  <p className="text-sm text-muted-foreground">
+                    This student does not allow mentors to view their academic profile.
+                  </p>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {canShowField('major') && (
+                      <div className="rounded-lg border p-4">
+                        <p className="text-sm text-muted-foreground">Major</p>
+                        <p className="font-medium">{studentProfile.major || 'Not added'}</p>
+                      </div>
+                    )}
+
+                    {canShowField('gpa') && (
+                      <div className="rounded-lg border p-4">
+                        <p className="text-sm text-muted-foreground">GPA</p>
+                        <p className="font-medium">{studentProfile.gpa ?? 'Not added'}</p>
+                      </div>
+                    )}
+
+                    {canShowField('university') && (
+                      <div className="rounded-lg border p-4 md:col-span-2">
+                        <p className="text-sm text-muted-foreground">University</p>
+                        <p className="font-medium">{studentProfile.university || 'Not added'}</p>
+                      </div>
+                    )}
+
+                    {canShowField('courses') && (
+                      <div className="rounded-lg border p-4 md:col-span-2">
+                        <p className="text-sm text-muted-foreground">Courses</p>
+                        <p>{studentProfile.completed_courses || 'Not added'}</p>
+                      </div>
+                    )}
+
+                    {canShowField('skills') && (
+                      <div className="rounded-lg border p-4 md:col-span-2">
+                        <p className="text-sm text-muted-foreground">Skills</p>
+                        <p>{studentProfile.self_reported_skills || 'Not added'}</p>
+                      </div>
+                    )}
+
+                    {canShowField('transcript_file') &&
+                      studentProfile.transcript_file_name && (
+                        <div className="rounded-lg border p-4 md:col-span-2">
+                          <p className="text-sm text-muted-foreground">Transcript File</p>
+
+                          {getTranscriptFileUrl() ? (
+                            <a
+                              href={getTranscriptFileUrl() || '#'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 text-primary underline"
+                            >
+                              <FileText className="h-4 w-4" />
+                              {studentProfile.transcript_file_name}
+                            </a>
+                          ) : (
+                            <p>{studentProfile.transcript_file_name}</p>
+                          )}
+                        </div>
+                      )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
-        </div>
+        )}
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-          <Card variant="elevated">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-                  <Users className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <div className="text-2xl font-bold">{currentMentees.length}</div>
-                  <div className="text-sm text-muted-foreground">Current Mentees</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card variant="elevated">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10">
-                  <MessageSquare className="h-6 w-6 text-accent" />
-                </div>
-                <div>
-                  <div className="text-2xl font-bold">{requests.length}</div>
-                  <div className="text-sm text-muted-foreground">Pending Requests</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card variant="elevated">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-chart-3/10">
-                  <Calendar className="h-6 w-6 text-chart-3" />
-                </div>
-                <div>
-                  <div className="text-2xl font-bold">24</div>
-                  <div className="text-sm text-muted-foreground">Total Sessions</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Pending Requests */}
-          <Card variant="elevated">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+          <Card>
             <CardHeader>
               <CardTitle>Pending Requests</CardTitle>
               <CardDescription>Students requesting your mentorship</CardDescription>
             </CardHeader>
+
             <CardContent className="space-y-4">
-              {requests.length > 0 ? (
-                requests.map((request) => (
-                  <div 
-                    key={request.id} 
-                    className="p-4 rounded-lg border bg-muted/30"
-                  >
-                    <div className="flex items-start gap-4 mb-3">
-                      <Avatar className="h-10 w-10">
-                        <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                          {request.studentName.split(' ').map(n => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-semibold">{request.studentName}</h4>
-                          <Badge variant="secondary">Year {request.year}</Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground">{request.major}</p>
-                      </div>
-                      <div className="text-xs text-muted-foreground">{request.requestDate}</div>
-                    </div>
-                    <p className="text-sm text-muted-foreground mb-4 italic">
-                      "{request.message}"
-                    </p>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="gradient" 
-                        size="sm" 
-                        className="flex-1"
-                        onClick={() => handleAccept(request.id, request.studentName)}
-                      >
-                        <Check className="h-4 w-4 mr-1" />
-                        Accept
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="flex-1"
-                        onClick={() => handleDecline(request.id, request.studentName)}
-                      >
-                        <X className="h-4 w-4 mr-1" />
-                        Decline
-                      </Button>
-                    </div>
-                  </div>
-                ))
+              {requests.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No pending requests.</p>
               ) : (
-                <div className="text-center py-8">
-                  <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="font-semibold mb-2">No pending requests</h3>
-                  <p className="text-sm text-muted-foreground">
-                    New mentorship requests will appear here
-                  </p>
-                </div>
+                requests.map((request) => {
+                  const student = getStudent(request.student_id)
+
+                  return (
+                    <div key={request.id} className="rounded-lg border bg-muted/30 p-4">
+                      <div className="mb-3 flex items-start gap-4">
+                        <Avatar className="h-10 w-10">
+                          <AvatarFallback>
+                            {getInitials(student?.name)}
+                          </AvatarFallback>
+                        </Avatar>
+
+                        <div className="flex-1">
+                          <div className="mb-1 flex items-center gap-2">
+                            <h4 className="font-semibold">
+                              {student?.name || 'Student'}
+                            </h4>
+
+                            <Badge variant="secondary">Pending</Badge>
+                          </div>
+
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(request.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+
+                      <p className="mb-4 text-sm italic text-muted-foreground">
+                        "{request.message || 'No message provided.'}"
+                      </p>
+
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => viewStudentProfile(request)}
+                        >
+                          <Eye className="mr-2 h-4 w-4" />
+                          View Profile
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => handleAccept(request)}
+                          disabled={updatingRequestId === request.id}
+                        >
+                          {updatingRequestId === request.id ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Check className="mr-2 h-4 w-4" />
+                          )}
+                          Accept
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => handleDecline(request)}
+                          disabled={updatingRequestId === request.id}
+                        >
+                          <X className="mr-2 h-4 w-4" />
+                          Decline
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })
               )}
             </CardContent>
           </Card>
 
-          {/* Current Mentees */}
-          <Card variant="elevated">
+          <Card>
             <CardHeader>
               <CardTitle>Current Mentees</CardTitle>
-              <CardDescription>Students you're currently mentoring</CardDescription>
+              <CardDescription>Accepted mentorship connections</CardDescription>
             </CardHeader>
+
             <CardContent className="space-y-4">
-              {currentMentees.map((mentee) => (
-                <div 
-                  key={mentee.id} 
-                  className="flex items-center gap-4 p-4 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
-                >
-                  <Avatar className="h-12 w-12">
-                    <AvatarFallback className="gradient-primary text-primary-foreground">
-                      {mentee.name.split(' ').map(n => n[0]).join('')}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <h4 className="font-semibold">{mentee.name}</h4>
-                    <p className="text-sm text-muted-foreground">{mentee.major} • Year {mentee.year}</p>
-                    <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        Since {mentee.startDate}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        Last: {mentee.lastMeeting}
-                      </span>
+              {acceptedRequests.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No current mentees.</p>
+              ) : (
+                acceptedRequests.map((request) => {
+                  const student = getStudent(request.student_id)
+
+                  return (
+                    <div key={request.id} className="flex items-center gap-4 rounded-lg border p-4">
+                      <Avatar className="h-12 w-12">
+                        <AvatarFallback>
+                          {getInitials(student?.name)}
+                        </AvatarFallback>
+                      </Avatar>
+
+                      <div className="flex-1">
+                        <h4 className="font-semibold">
+                          {student?.name || 'Student'}
+                        </h4>
+
+                        <p className="text-sm text-muted-foreground">
+                          Accepted mentorship
+                        </p>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => viewStudentProfile(request)}
+                        >
+                          <Eye className="mr-2 h-4 w-4" />
+                          View Profile
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => navigate('/mentor-chat')}
+                        >
+                          <MessageSquare className="h-4 w-4" />
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeStudent(request)}
+                          disabled={removingId === request.id}
+                        >
+                          {removingId === request.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                  <Button variant="ghost" size="icon">
-                    <User className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
+                  )
+                })
+              )}
             </CardContent>
           </Card>
         </div>
       </main>
     </div>
-  );
+  )
 }

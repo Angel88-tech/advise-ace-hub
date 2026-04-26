@@ -8,6 +8,7 @@ import AuthCallback from './pages/AuthCallback'
 import ResetPassword from './pages/ResetPassword'
 import NotFound from './pages/NotFound'
 import Chat from './pages/Chat'
+import MentorChat from './pages/MentorChat'
 import Account from './pages/Account'
 import Settings from './pages/Settings'
 
@@ -19,6 +20,7 @@ import Transcript from './pages/student/Transcript'
 
 import AdvisorDashboard from './pages/advisor/AdvisorDashboard'
 import MentorDashboard from './pages/mentor/MentorDashboard'
+import MentorProfessionalProfile from './pages/mentor/MentorProfessionalProfile'
 
 import ThemeToggle from './components/ThemeToggle'
 import { CareerChatWidget } from './components/CareerChatWidget'
@@ -126,6 +128,15 @@ export default function App() {
           />
 
           <Route
+            path="/mentor-chat"
+            element={
+              <ProtectedRoute allowedRoles={['mentor', 'student', 'advisor']}>
+                <MentorChat />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/student/dashboard"
             element={
               <ProtectedRoute allowedRoles={['student']}>
@@ -184,6 +195,15 @@ export default function App() {
             element={
               <ProtectedRoute allowedRoles={['mentor']}>
                 <MentorDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/mentor/profile"
+            element={
+              <ProtectedRoute allowedRoles={['mentor']}>
+                <MentorProfessionalProfile />
               </ProtectedRoute>
             }
           />

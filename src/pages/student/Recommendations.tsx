@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Navbar } from '@/components/layout/Navbar'
 import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/contexts/AuthContext'
@@ -6,7 +7,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { Loader2, Sparkles, TrendingUp, TrendingDown, Target, Briefcase, DollarSign, Filter, ChevronRight } from 'lucide-react'
+import {
+  Loader2,
+  Sparkles,
+  Target,
+  Filter,
+  ChevronRight,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 type Occupation = {
@@ -15,11 +22,6 @@ type Occupation = {
   description: string
   industry: string | null
   outlook: string | null
-}
-
-type Skill = {
-  id: string
-  name: string
 }
 
 type Recommendation = {
@@ -38,6 +40,7 @@ const normalize = (value: string) =>
 
 export default function Recommendations() {
   const { user } = useAuth()
+  const navigate = useNavigate()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -125,10 +128,14 @@ export default function Recommendations() {
       }
     })
 
-    const results: Recommendation[] = occupations.map((occupation: Occupation) => {
-      const related = occupationSkills.filter((row: any) => row.occupation_id === occupation.id)
+    const results: Recommendation[] = (occupations || []).map((occupation: Occupation) => {
+      const related = (occupationSkills || []).filter(
+        (row: any) => row.occupation_id === occupation.id
+      )
 
-      const requiredSkills = related.map((r: any) => r.skills?.name).filter(Boolean)
+      const requiredSkills = related
+        .map((row: any) => row.skills?.name)
+        .filter(Boolean)
 
       const matchedSkills = requiredSkills.filter((skill: string) =>
         studentText.includes(normalize(skill))
@@ -185,6 +192,21 @@ export default function Recommendations() {
     }
 
     toast.success('Results saved successfully')
+  }
+
+  const openSkillGap = () => {
+    if (!selectedCareer) return
+
+    navigate('/student/skill-gap', {
+      state: {
+        occupationId: selectedCareer.occupation.id,
+        occupationTitle: selectedCareer.occupation.title,
+        occupationDescription: selectedCareer.occupation.description,
+        matchedSkills: selectedCareer.matchedSkills,
+        missingSkills: selectedCareer.missingSkills,
+        matchScore: selectedCareer.matchScore,
+      },
+    })
   }
 
   if (loading) {
@@ -318,15 +340,21 @@ export default function Recommendations() {
                     <div>
                       <h4 className="font-semibold mb-2">Missing Skills</h4>
                       <div className="flex gap-2 flex-wrap">
-                        {selectedCareer.missingSkills.map((skill) => (
-                          <Badge key={skill} variant="outline">
-                            {skill}
-                          </Badge>
-                        ))}
+                        {selectedCareer.missingSkills.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">
+                            No missing skills for this career.
+                          </p>
+                        ) : (
+                          selectedCareer.missingSkills.map((skill) => (
+                            <Badge key={skill} variant="outline">
+                              {skill}
+                            </Badge>
+                          ))
+                        )}
                       </div>
                     </div>
 
-                    <Button className="w-full">
+                    <Button className="w-full" onClick={openSkillGap}>
                       View Skill Gap Analysis
                       <ChevronRight className="h-4 w-4 ml-2" />
                     </Button>

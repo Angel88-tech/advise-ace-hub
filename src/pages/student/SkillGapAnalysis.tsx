@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { Navbar } from '@/components/layout/Navbar'
 import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/contexts/AuthContext'
@@ -45,6 +45,15 @@ type SkillGapItem = {
   resources: { title: string; provider: string; type: string; url: string }[]
 }
 
+type SkillGapState = {
+  occupationId?: string
+  occupationTitle?: string
+  occupationDescription?: string
+  matchedSkills?: string[]
+  missingSkills?: string[]
+  matchScore?: number
+}
+
 const priorityConfig = {
   high: { label: 'High Priority', variant: 'destructive' as const, color: 'text-destructive' },
   medium: { label: 'Medium', variant: 'warning' as const, color: 'text-chart-4' },
@@ -88,6 +97,8 @@ function getPriority(index: number): 'high' | 'medium' | 'low' {
 
 export default function SkillGapAnalysis() {
   const { user } = useAuth()
+  const location = useLocation()
+  const selectedFromRecommendations = location.state as SkillGapState | null
 
   const [recommendations, setRecommendations] = useState<SavedRecommendation[]>([])
   const [selectedId, setSelectedId] = useState('')
@@ -131,7 +142,11 @@ export default function SkillGapAnalysis() {
     setRecommendations(rows)
 
     if (rows.length > 0) {
-      setSelectedId(rows[0].id)
+      const matchedFromState = selectedFromRecommendations?.occupationId
+        ? rows.find((item: SavedRecommendation) => item.occupations?.id === selectedFromRecommendations.occupationId)
+        : null
+
+      setSelectedId(matchedFromState?.id || rows[0].id)
     }
 
     setLoading(false)

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/integrations/supabase/client'
 import { Navbar } from '@/components/layout/Navbar'
@@ -8,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import {
   Camera,
@@ -23,9 +25,37 @@ import {
   Lock,
   Eye,
   EyeOff,
+  FileText,
+  Sparkles,
 } from 'lucide-react'
 
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,15}$/
+
+type StudentAcademicProfile = {
+  major: string | null
+  gpa: number | null
+  university: string | null
+  completed_courses: string | null
+  self_reported_skills: string | null
+  transcript_file_name: string | null
+  ai_consent: boolean
+  visible_to_mentors: boolean
+  visible_to_advisors: boolean
+}
+
+type ProfessionalProfile = {
+  role: 'mentor' | 'advisor'
+  full_name: string | null
+  job_title: string | null
+  company: string | null
+  department: string | null
+  specialization: string | null
+  experience_years: number | null
+  bio: string | null
+  skills: string | null
+  linkedin_url: string | null
+  is_available: boolean
+}
 
 export default function Account() {
   const { user, profile, refreshProfile, logout, updateProfile } = useAuth()
@@ -35,6 +65,10 @@ export default function Account() {
   const [isSaving, setIsSaving] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [isLoadingExtraProfile, setIsLoadingExtraProfile] = useState(false)
+
+  const [studentAcademicProfile, setStudentAcademicProfile] = useState<StudentAcademicProfile | null>(null)
+  const [professionalProfile, setProfessionalProfile] = useState<ProfessionalProfile | null>(null)
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -65,6 +99,40 @@ export default function Account() {
       website_url: profile?.website_url || '',
     })
   }, [profile])
+
+  useEffect(() => {
+    loadExtraProfile()
+  }, [user?.id, profile?.role])
+
+  const loadExtraProfile = async () => {
+    if (!user?.id || !profile?.role) return
+
+    setIsLoadingExtraProfile(true)
+
+    if (profile.role === 'student') {
+      const { data } = await (supabase as any)
+        .from('student_academic_profiles')
+        .select('major,gpa,university,completed_courses,self_reported_skills,transcript_file_name,ai_consent,visible_to_mentors,visible_to_advisors')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      setStudentAcademicProfile(data || null)
+      setProfessionalProfile(null)
+    }
+
+    if (profile.role === 'mentor' || profile.role === 'advisor') {
+      const { data } = await (supabase as any)
+        .from('professional_profiles')
+        .select('role,full_name,job_title,company,department,specialization,experience_years,bio,skills,linkedin_url,is_available')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      setProfessionalProfile(data || null)
+      setStudentAcademicProfile(null)
+    }
+
+    setIsLoadingExtraProfile(false)
+  }
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -203,6 +271,13 @@ export default function Account() {
     }
   }
 
+  const professionalEditPath =
+    profile?.role === 'mentor'
+      ? '/mentor/dashboard'
+      : profile?.role === 'advisor'
+        ? '/advisor/dashboard'
+        : '/profile'
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -275,7 +350,7 @@ export default function Account() {
                   id="phone"
                   value={formData.phone}
                   onChange={(e) => handleChange('phone', e.target.value)}
-                  placeholder="+1 (555) 123-4567"
+                  placeholder="+966 5X XXX XXXX"
                 />
               </div>
             </div>
@@ -290,7 +365,7 @@ export default function Account() {
                   id="location"
                   value={formData.location}
                   onChange={(e) => handleChange('location', e.target.value)}
-                  placeholder="City, State"
+                  placeholder="City, Country"
                 />
               </div>
 
@@ -320,6 +395,190 @@ export default function Account() {
             </div>
           </CardContent>
         </Card>
+
+        {profile?.role === 'student' && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <FileText className="h-5 w-5 text-primary" />
+                Academic Transcript Profile
+              </CardTitle>
+              <CardDescription>
+                This data comes from your Transcript page.
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent>
+              {isLoadingExtraProfile ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                </div>
+              ) : studentAcademicProfile ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="rounded-lg border p-4">
+                      <p className="text-sm text-muted-foreground">Major</p>
+                      <p className="font-medium">{studentAcademicProfile.major || 'Not added'}</p>
+                    </div>
+
+                    <div className="rounded-lg border p-4">
+                      <p className="text-sm text-muted-foreground">GPA</p>
+                      <p className="font-medium">{studentAcademicProfile.gpa ?? 'Not added'}</p>
+                    </div>
+
+                    <div className="rounded-lg border p-4 sm:col-span-2">
+                      <p className="text-sm text-muted-foreground">University</p>
+                      <p className="font-medium">{studentAcademicProfile.university || 'Not added'}</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border p-4">
+                    <p className="mb-2 text-sm text-muted-foreground">Completed Courses</p>
+                    <p className="whitespace-pre-wrap text-sm">{studentAcademicProfile.completed_courses || 'Not added'}</p>
+                  </div>
+
+                  <div className="rounded-lg border p-4">
+                    <p className="mb-2 text-sm text-muted-foreground">Skills</p>
+                    <p className="whitespace-pre-wrap text-sm">{studentAcademicProfile.self_reported_skills || 'Not added'}</p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant={studentAcademicProfile.ai_consent ? 'default' : 'secondary'}>
+                      <Sparkles className="mr-1 h-3 w-3" />
+                      AI Consent: {studentAcademicProfile.ai_consent ? 'Enabled' : 'Disabled'}
+                    </Badge>
+
+                    <Badge variant={studentAcademicProfile.visible_to_mentors ? 'default' : 'secondary'}>
+                      Mentors: {studentAcademicProfile.visible_to_mentors ? 'Allowed' : 'Hidden'}
+                    </Badge>
+
+                    <Badge variant={studentAcademicProfile.visible_to_advisors ? 'default' : 'secondary'}>
+                      Advisors: {studentAcademicProfile.visible_to_advisors ? 'Allowed' : 'Hidden'}
+                    </Badge>
+
+                    {studentAcademicProfile.transcript_file_name && (
+                      <Badge variant="outline">
+                        File: {studentAcademicProfile.transcript_file_name}
+                      </Badge>
+                    )}
+                  </div>
+
+                  <Button variant="outline" asChild className="w-full">
+                    <Link to="/student/transcript">Edit Transcript Information</Link>
+                  </Button>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <p className="mb-4 text-muted-foreground">
+                    No transcript information has been saved yet.
+                  </p>
+                  <Button asChild>
+                    <Link to="/student/transcript">Add Transcript Information</Link>
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {(profile?.role === 'mentor' || profile?.role === 'advisor') && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Briefcase className="h-5 w-5 text-primary" />
+                Professional Profile
+              </CardTitle>
+              <CardDescription>
+                This data is shown to students when you are available.
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent>
+              {isLoadingExtraProfile ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                </div>
+              ) : professionalProfile ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="rounded-lg border p-4">
+                      <p className="text-sm text-muted-foreground">Professional Name</p>
+                      <p className="font-medium">{professionalProfile.full_name || 'Not added'}</p>
+                    </div>
+
+                    <div className="rounded-lg border p-4">
+                      <p className="text-sm text-muted-foreground">Job Title</p>
+                      <p className="font-medium">{professionalProfile.job_title || 'Not added'}</p>
+                    </div>
+
+                    <div className="rounded-lg border p-4">
+                      <p className="text-sm text-muted-foreground">Company</p>
+                      <p className="font-medium">{professionalProfile.company || 'Not added'}</p>
+                    </div>
+
+                    <div className="rounded-lg border p-4">
+                      <p className="text-sm text-muted-foreground">Specialization</p>
+                      <p className="font-medium">{professionalProfile.specialization || 'Not added'}</p>
+                    </div>
+
+                    <div className="rounded-lg border p-4">
+                      <p className="text-sm text-muted-foreground">Department</p>
+                      <p className="font-medium">{professionalProfile.department || 'Not added'}</p>
+                    </div>
+
+                    <div className="rounded-lg border p-4">
+                      <p className="text-sm text-muted-foreground">Experience</p>
+                      <p className="font-medium">
+                        {professionalProfile.experience_years !== null
+                          ? `${professionalProfile.experience_years} years`
+                          : 'Not added'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border p-4">
+                    <p className="mb-2 text-sm text-muted-foreground">Skills / Expertise</p>
+                    <p className="whitespace-pre-wrap text-sm">{professionalProfile.skills || 'Not added'}</p>
+                  </div>
+
+                  <div className="rounded-lg border p-4">
+                    <p className="mb-2 text-sm text-muted-foreground">Professional Bio</p>
+                    <p className="whitespace-pre-wrap text-sm">{professionalProfile.bio || 'Not added'}</p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant={professionalProfile.is_available ? 'default' : 'secondary'}>
+                      {professionalProfile.is_available ? 'Available' : 'Not Available'}
+                    </Badge>
+
+                    <Badge variant="outline" className="capitalize">
+                      {professionalProfile.role}
+                    </Badge>
+
+                    {professionalProfile.linkedin_url && (
+                      <Badge variant="outline">
+                        LinkedIn Added
+                      </Badge>
+                    )}
+                  </div>
+
+                  <Button variant="outline" asChild className="w-full">
+                    <Link to={professionalEditPath}>Edit Professional Profile</Link>
+                  </Button>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <p className="mb-4 text-muted-foreground">
+                    No professional profile has been saved yet.
+                  </p>
+                  <Button asChild>
+                    <Link to={professionalEditPath}>Add Professional Profile</Link>
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="mb-6">
           <CardHeader>
