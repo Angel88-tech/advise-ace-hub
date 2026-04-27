@@ -33,7 +33,9 @@ type RequestRow = {
 type StudentInfo = {
   user_id: string
   name: string | null
+  
   role: string | null
+  major: string | null
 }
 
 type StudentAcademicProfile = {
@@ -106,7 +108,7 @@ export default function MentorDashboard() {
     if (studentIds.length > 0) {
       const { data: studentData } = await (supabase as any)
         .from('profiles')
-        .select('user_id, name, role')
+        .select('user_id, name, role, major')
         .in('user_id', studentIds)
 
       setStudents(studentData || [])
@@ -119,6 +121,10 @@ export default function MentorDashboard() {
 
   const getStudent = (studentId: string) => {
     return students.find((student) => student.user_id === studentId)
+  }
+
+  const getStudentName = (student?: StudentInfo) => {
+    return student?.name || 'Student'
   }
 
   const getInitials = (name?: string | null) => {
@@ -157,7 +163,7 @@ export default function MentorDashboard() {
   const viewStudentProfile = async (request: RequestRow) => {
     const student = getStudent(request.student_id)
 
-    setSelectedStudentName(student?.name || 'Student')
+    setSelectedStudentName(getStudentName(student))
     setStudentProfile(null)
     setProfileBlocked(false)
     setLoadingStudentProfile(true)
@@ -278,7 +284,7 @@ export default function MentorDashboard() {
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="font-display text-3xl font-bold mb-2">
-              Welcome, {profile?.name?.split(' ')[0]}! 👋
+              Welcome, {profile?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'Mentor'}! 👋
             </h1>
             <p className="text-muted-foreground">
               Manage your mentorship requests and accepted students.
@@ -378,26 +384,25 @@ export default function MentorDashboard() {
                       </div>
                     )}
 
-                    {canShowField('transcript_file') &&
-                      studentProfile.transcript_file_name && (
-                        <div className="rounded-lg border p-4 md:col-span-2">
-                          <p className="text-sm text-muted-foreground">Transcript File</p>
+                    {canShowField('transcript_file') && studentProfile.transcript_file_name && (
+                      <div className="rounded-lg border p-4 md:col-span-2">
+                        <p className="text-sm text-muted-foreground">Transcript File</p>
 
-                          {getTranscriptFileUrl() ? (
-                            <a
-                              href={getTranscriptFileUrl() || '#'}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-2 text-primary underline"
-                            >
-                              <FileText className="h-4 w-4" />
-                              {studentProfile.transcript_file_name}
-                            </a>
-                          ) : (
-                            <p>{studentProfile.transcript_file_name}</p>
-                          )}
-                        </div>
-                      )}
+                        {getTranscriptFileUrl() ? (
+                          <a
+                            href={getTranscriptFileUrl() || '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 text-primary underline"
+                          >
+                            <FileText className="h-4 w-4" />
+                            {studentProfile.transcript_file_name}
+                          </a>
+                        ) : (
+                          <p>{studentProfile.transcript_file_name}</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -418,24 +423,24 @@ export default function MentorDashboard() {
               ) : (
                 requests.map((request) => {
                   const student = getStudent(request.student_id)
+                  const studentName = getStudentName(student)
 
                   return (
                     <div key={request.id} className="rounded-lg border bg-muted/30 p-4">
                       <div className="mb-3 flex items-start gap-4">
                         <Avatar className="h-10 w-10">
-                          <AvatarFallback>
-                            {getInitials(student?.name)}
-                          </AvatarFallback>
+                          <AvatarFallback>{getInitials(studentName)}</AvatarFallback>
                         </Avatar>
 
                         <div className="flex-1">
                           <div className="mb-1 flex items-center gap-2">
-                            <h4 className="font-semibold">
-                              {student?.name || 'Student'}
-                            </h4>
-
+                            <h4 className="font-semibold">{studentName}</h4>
                             <Badge variant="secondary">Pending</Badge>
                           </div>
+
+                          <p className="text-sm text-muted-foreground">
+                            {student?.major || 'No major added'}
+                          </p>
 
                           <p className="text-xs text-muted-foreground">
                             {new Date(request.created_at).toLocaleDateString()}
@@ -502,22 +507,19 @@ export default function MentorDashboard() {
               ) : (
                 acceptedRequests.map((request) => {
                   const student = getStudent(request.student_id)
+                  const studentName = getStudentName(student)
 
                   return (
                     <div key={request.id} className="flex items-center gap-4 rounded-lg border p-4">
                       <Avatar className="h-12 w-12">
-                        <AvatarFallback>
-                          {getInitials(student?.name)}
-                        </AvatarFallback>
+                        <AvatarFallback>{getInitials(studentName)}</AvatarFallback>
                       </Avatar>
 
                       <div className="flex-1">
-                        <h4 className="font-semibold">
-                          {student?.name || 'Student'}
-                        </h4>
+                        <h4 className="font-semibold">{studentName}</h4>
 
                         <p className="text-sm text-muted-foreground">
-                          Accepted mentorship
+                          {student?.major || 'Accepted mentorship'}
                         </p>
                       </div>
 

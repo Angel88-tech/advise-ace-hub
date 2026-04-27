@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/integrations/supabase/client'
 import { Navbar } from '@/components/layout/Navbar'
@@ -27,6 +27,7 @@ import {
   EyeOff,
   FileText,
   Sparkles,
+  Trash2,
 } from 'lucide-react'
 
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,15}$/
@@ -59,6 +60,7 @@ type ProfessionalProfile = {
 
 export default function Account() {
   const { user, profile, refreshProfile, logout, updateProfile } = useAuth()
+  const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [isUploading, setIsUploading] = useState(false)
@@ -66,6 +68,7 @@ export default function Account() {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
   const [isLoadingExtraProfile, setIsLoadingExtraProfile] = useState(false)
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false)
 
   const [studentAcademicProfile, setStudentAcademicProfile] = useState<StudentAcademicProfile | null>(null)
   const [professionalProfile, setProfessionalProfile] = useState<ProfessionalProfile | null>(null)
@@ -271,6 +274,35 @@ export default function Account() {
     }
   }
 
+  const handleDeleteAccount = async () => {
+    const confirmed = window.confirm(
+      'Are you sure you want to delete your account? This action cannot be undone.'
+    )
+
+    if (!confirmed) return
+
+    const secondConfirm = window.confirm(
+      'This will permanently delete your account and sign you out. Continue?'
+    )
+
+    if (!secondConfirm) return
+
+    setIsDeletingAccount(true)
+
+    try {
+      const { error } = await supabase.functions.invoke('delete-account')
+
+      if (error) throw error
+
+      await supabase.auth.signOut()
+      toast.success('Account deleted successfully.')
+      navigate('/auth', { replace: true })
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete account.')
+      setIsDeletingAccount(false)
+    }
+  }
+
   const professionalEditPath =
     profile?.role === 'mentor'
       ? '/mentor/dashboard'
@@ -403,9 +435,7 @@ export default function Account() {
                 <FileText className="h-5 w-5 text-primary" />
                 Academic Transcript Profile
               </CardTitle>
-              <CardDescription>
-                This data comes from your Transcript page.
-              </CardDescription>
+              <CardDescription>This data comes from your Transcript page.</CardDescription>
             </CardHeader>
 
             <CardContent>
@@ -488,9 +518,7 @@ export default function Account() {
                 <Briefcase className="h-5 w-5 text-primary" />
                 Professional Profile
               </CardTitle>
-              <CardDescription>
-                This data is shown to students when you are available.
-              </CardDescription>
+              <CardDescription>This data is shown to students when you are available.</CardDescription>
             </CardHeader>
 
             <CardContent>
@@ -556,9 +584,7 @@ export default function Account() {
                     </Badge>
 
                     {professionalProfile.linkedin_url && (
-                      <Badge variant="outline">
-                        LinkedIn Added
-                      </Badge>
+                      <Badge variant="outline">LinkedIn Added</Badge>
                     )}
                   </div>
 
@@ -675,6 +701,34 @@ export default function Account() {
             <Button className="w-full" onClick={handleChangePassword} disabled={isChangingPassword}>
               {isChangingPassword ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lock className="mr-2 h-4 w-4" />}
               Update Password
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="mb-6 border-destructive/40">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Delete Account
+            </CardTitle>
+            <CardDescription>
+              Permanently delete your account. This action cannot be undone.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent>
+            <Button
+              variant="destructive"
+              className="w-full"
+              onClick={handleDeleteAccount}
+              disabled={isDeletingAccount}
+            >
+              {isDeletingAccount ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              Delete My Account
             </Button>
           </CardContent>
         </Card>

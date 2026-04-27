@@ -69,6 +69,8 @@ export default function MentorChat() {
   const [studentProfile, setStudentProfile] = useState<StudentAcademicProfile | null>(null)
   const [loadingStudentProfile, setLoadingStudentProfile] = useState(false)
 
+  const isProfessional = profile?.role === 'mentor' || profile?.role === 'advisor'
+
   useEffect(() => {
     if (user?.id && profile?.role) loadPeople()
   }, [user?.id, profile?.role])
@@ -84,7 +86,7 @@ export default function MentorChat() {
     loadMessages(selectedUser.conversation_id)
 
     const channel = supabase
-      .channel(`mentor-chat-${selectedUser.conversation_id}`)
+      .channel(`chat-${selectedUser.conversation_id}`)
       .on(
         'postgres_changes',
         {
@@ -95,7 +97,6 @@ export default function MentorChat() {
         },
         (payload) => {
           const msg = payload.new as Message
-
           setMessages((prev) => {
             if (prev.some((item) => item.id === msg.id)) return prev
             return [...prev, msg]
@@ -112,12 +113,12 @@ export default function MentorChat() {
   const loadPeople = async () => {
     if (!user?.id || !profile?.role) return
 
-    if (profile.role === 'mentor') {
+    if (profile.role === 'mentor' || profile.role === 'advisor') {
       const { data: rows, error } = await (supabase as any)
         .from('connection_requests')
-        .select('id, student_id, professional_id')
+        .select('id, student_id, professional_id, professional_role')
         .eq('professional_id', user.id)
-        .eq('professional_role', 'mentor')
+        .eq('professional_role', profile.role)
         .eq('status', 'accepted')
 
       if (error) {
@@ -134,6 +135,8 @@ export default function MentorChat() {
             .eq('user_id', item.student_id)
             .maybeSingle()
 
+          let conversationId = ''
+
           const { data: conversation } = await (supabase as any)
             .from('conversations')
             .select('id')
@@ -141,12 +144,28 @@ export default function MentorChat() {
             .eq('professional_id', item.professional_id)
             .maybeSingle()
 
+          if (conversation?.id) {
+            conversationId = conversation.id
+          } else {
+            const { data: newConversation } = await (supabase as any)
+              .from('conversations')
+              .insert({
+                student_id: item.student_id,
+                professional_id: item.professional_id,
+                request_id: item.id,
+              })
+              .select('id')
+              .single()
+
+            conversationId = newConversation?.id || ''
+          }
+
           return {
             user_id: item.student_id,
             name: profileData?.name || 'Student',
             role: profileData?.role || 'student',
             request_id: item.id,
-            conversation_id: conversation?.id || '',
+            conversation_id: conversationId,
           }
         })
       )
@@ -158,9 +177,8 @@ export default function MentorChat() {
     if (profile.role === 'student') {
       const { data: rows, error } = await (supabase as any)
         .from('connection_requests')
-        .select('id, student_id, professional_id')
+        .select('id, student_id, professional_id, professional_role')
         .eq('student_id', user.id)
-        .eq('professional_role', 'mentor')
         .eq('status', 'accepted')
 
       if (error) {
@@ -171,11 +189,13 @@ export default function MentorChat() {
 
       const users = await Promise.all(
         (rows || []).map(async (item: any) => {
-          const { data: profileData } = await (supabase as any)
+          const { data: professionalData } = await (supabase as any)
             .from('professional_profiles')
             .select('user_id, full_name, role')
             .eq('user_id', item.professional_id)
             .maybeSingle()
+
+          let conversationId = ''
 
           const { data: conversation } = await (supabase as any)
             .from('conversations')
@@ -184,12 +204,28 @@ export default function MentorChat() {
             .eq('professional_id', item.professional_id)
             .maybeSingle()
 
+          if (conversation?.id) {
+            conversationId = conversation.id
+          } else {
+            const { data: newConversation } = await (supabase as any)
+              .from('conversations')
+              .insert({
+                student_id: item.student_id,
+                professional_id: item.professional_id,
+                request_id: item.id,
+              })
+              .select('id')
+              .single()
+
+            conversationId = newConversation?.id || ''
+          }
+
           return {
             user_id: item.professional_id,
-            name: profileData?.full_name || 'Mentor',
-            role: profileData?.role || 'mentor',
+            name: professionalData?.full_name || item.professional_role || 'Professional',
+            role: professionalData?.role || item.professional_role || 'professional',
             request_id: item.id,
-            conversation_id: conversation?.id || '',
+            conversation_id: conversationId,
           }
         })
       )
@@ -334,11 +370,11 @@ export default function MentorChat() {
       setStudentProfile(null)
     }
 
-    toast.success(profile?.role === 'mentor' ? 'Student removed' : 'Mentor removed')
+    toast.success(isProfessional ? 'Student removed' : 'Connection removed')
   }
 
   const loadStudentProfile = async () => {
-    if (!selectedUser?.user_id || profile?.role !== 'mentor') return
+    if (!selectedUser?.user_id || !isProfessional) return
 
     setLoadingStudentProfile(true)
     setShowStudentProfile(true)
@@ -369,7 +405,10 @@ export default function MentorChat() {
     const value = settings[field]
 
     if (typeof value === 'boolean') return value
-    if (typeof value === 'object') return value?.mentor === true
+    if (typeof value === 'object') {
+      if (profile?.role === 'advisor') return value?.advisor === true || value?.mentor === true
+      return value?.mentor === true
+    }
 
     return true
   }
@@ -384,6 +423,10 @@ export default function MentorChat() {
     return publicUrl
   }
 
+  const listTitle = profile?.role === 'student' ? 'My Mentors' : 'My Students'
+  const emptyText = profile?.role === 'student' ? 'No accepted mentors yet.' : 'No accepted students yet.'
+  const selectText = profile?.role === 'student' ? 'Select Mentor' : 'Select Student'
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="mx-auto max-w-6xl">
@@ -394,9 +437,7 @@ export default function MentorChat() {
 
         <div className="grid gap-6 md:grid-cols-3">
           <div className="rounded-2xl border bg-card p-4">
-            <h2 className="mb-4 text-xl font-bold">
-              {profile?.role === 'mentor' ? 'My Students' : 'My Mentors'}
-            </h2>
+            <h2 className="mb-4 text-xl font-bold">{listTitle}</h2>
 
             <div className="space-y-2">
               {people.map((person) => (
@@ -435,9 +476,7 @@ export default function MentorChat() {
               ))}
 
               {people.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  No accepted users yet.
-                </p>
+                <p className="text-sm text-muted-foreground">{emptyText}</p>
               )}
             </div>
           </div>
@@ -445,13 +484,13 @@ export default function MentorChat() {
           <div className="flex h-[650px] flex-col rounded-2xl border bg-card md:col-span-2">
             <div className="flex items-center justify-between border-b p-4">
               <div>
-                <h3 className="text-lg font-bold">{selectedUser?.name || 'Select User'}</h3>
+                <h3 className="text-lg font-bold">{selectedUser?.name || selectText}</h3>
                 {selectedUser && (
                   <p className="text-xs capitalize text-muted-foreground">{selectedUser.role}</p>
                 )}
               </div>
 
-              {selectedUser && profile?.role === 'mentor' && (
+              {selectedUser && isProfessional && (
                 <Button size="sm" variant="outline" onClick={loadStudentProfile}>
                   <UserRound className="mr-2 h-4 w-4" />
                   View Student Profile
@@ -459,7 +498,7 @@ export default function MentorChat() {
               )}
             </div>
 
-            {showStudentProfile && profile?.role === 'mentor' && (
+            {showStudentProfile && isProfessional && (
               <div className="border-b bg-muted/30 p-4">
                 <div className="mb-3 flex items-center justify-between">
                   <h4 className="font-semibold">Student Profile</h4>
@@ -478,7 +517,7 @@ export default function MentorChat() {
                   </p>
                 ) : !studentProfile.visible_to_mentors ? (
                   <p className="text-sm text-muted-foreground">
-                    This student has not allowed mentors to view transcript information.
+                    This student has not allowed access to transcript information.
                   </p>
                 ) : (
                   <div className="grid gap-3 text-sm sm:grid-cols-2">

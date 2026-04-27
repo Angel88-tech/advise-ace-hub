@@ -15,16 +15,19 @@ import Settings from './pages/Settings'
 import StudentDashboard from './pages/student/StudentDashboard'
 import Recommendations from './pages/student/Recommendations'
 import Mentors from './pages/student/Mentors'
+import Advisors from './pages/student/Advisors'
+import AdvisorReports from './pages/student/AdvisorReports'
 import SkillGapAnalysis from './pages/student/SkillGapAnalysis'
 import Transcript from './pages/student/Transcript'
 
 import AdvisorDashboard from './pages/advisor/AdvisorDashboard'
+import AdvisorProfile from './pages/advisor/AdvisorProfile'
 import MentorDashboard from './pages/mentor/MentorDashboard'
 import MentorProfessionalProfile from './pages/mentor/MentorProfessionalProfile'
 
 import ThemeToggle from './components/ThemeToggle'
 import { CareerChatWidget } from './components/CareerChatWidget'
-
+import AdvisorStudentReports from './pages/advisor/AdvisorStudentReports'
 function getDashboardPath(role?: string) {
   switch (role) {
     case 'student':
@@ -86,6 +89,7 @@ export default function App() {
         <Toaster richColors position="top-center" />
 
         <Routes>
+          <Route path="/advisor/reports/:studentId" element={<AdvisorStudentReports />} />
           <Route path="/" element={<Landing />} />
 
           <Route
@@ -164,6 +168,24 @@ export default function App() {
           />
 
           <Route
+            path="/student/advisors"
+            element={
+              <ProtectedRoute allowedRoles={['student']}>
+                <Advisors />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/student/advisor-reports"
+            element={
+              <ProtectedRoute allowedRoles={['student']}>
+                <AdvisorReports />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/student/transcript"
             element={
               <ProtectedRoute allowedRoles={['student']}>
@@ -186,6 +208,15 @@ export default function App() {
             element={
               <ProtectedRoute allowedRoles={['advisor']}>
                 <AdvisorDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/advisor/profile"
+            element={
+              <ProtectedRoute allowedRoles={['advisor']}>
+                <AdvisorProfile />
               </ProtectedRoute>
             }
           />

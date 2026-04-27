@@ -53,18 +53,24 @@ export function Navbar() {
 
               {profile?.role === 'student' && (
                 <>
-                  <Link
-                    to="/student/recommendations"
-                    className="text-sm font-medium hover:text-primary"
-                  >
+                  <Link to="/student/recommendations" className="text-sm font-medium hover:text-primary">
                     Recommendations
                   </Link>
 
-                  <Link
-                    to="/student/mentors"
-                    className="text-sm font-medium hover:text-primary"
-                  >
+                  <Link to="/student/mentors" className="text-sm font-medium hover:text-primary">
                     Find Mentors
+                  </Link>
+
+                  <Link to="/student/advisors" className="text-sm font-medium hover:text-primary">
+                    Find Advisors
+                  </Link>
+
+                  <Link to="/student/transcript" className="text-sm font-medium hover:text-primary">
+                    Transcript
+                  </Link>
+
+                  <Link to="/student/advisor-reports" className="text-sm font-medium hover:text-primary">
+                    Reports
                   </Link>
                 </>
               )}
@@ -73,9 +79,7 @@ export function Navbar() {
                 <DropdownMenuTrigger asChild>
                   <button type="button">
                     <Avatar>
-                      <AvatarFallback>
-                        {profile?.name?.charAt(0) || 'U'}
-                      </AvatarFallback>
+                      <AvatarFallback>{profile?.name?.charAt(0) || 'U'}</AvatarFallback>
                     </Avatar>
                   </button>
                 </DropdownMenuTrigger>
@@ -141,18 +145,24 @@ export function Navbar() {
 
               {profile?.role === 'student' && (
                 <>
-                  <Link
-                    to="/student/recommendations"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
+                  <Link to="/student/recommendations" onClick={() => setIsMobileMenuOpen(false)}>
                     Recommendations
                   </Link>
 
-                  <Link
-                    to="/student/mentors"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
+                  <Link to="/student/mentors" onClick={() => setIsMobileMenuOpen(false)}>
                     Find Mentors
+                  </Link>
+
+                  <Link to="/student/advisors" onClick={() => setIsMobileMenuOpen(false)}>
+                    Find Advisors
+                  </Link>
+
+                  <Link to="/student/transcript" onClick={() => setIsMobileMenuOpen(false)}>
+                    Transcript
+                  </Link>
+
+                  <Link to="/student/advisor-reports" onClick={() => setIsMobileMenuOpen(false)}>
+                    Reports
                   </Link>
                 </>
               )}
@@ -165,11 +175,7 @@ export function Navbar() {
                 Settings
               </Link>
 
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="text-left"
-              >
+              <button type="button" onClick={handleLogout} className="text-left">
                 Log out
               </button>
             </>
